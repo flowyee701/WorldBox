@@ -1,0 +1,3 @@
+/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/CMakeFiles/WorldBoxProto.dir
+/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/CMakeFiles/rebuild_cache.dir
