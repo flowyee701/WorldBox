@@ -1,6 +1,8 @@
 #include "world.h"
 #include "human_behavior.h"
 #include "bandit_behavior.h"
+#include "settlement.h"
+#include "npc.h"
 #include <algorithm>
 
 // ------------------------------------------------------------
@@ -47,7 +49,7 @@ void World::Init() {
     settlements.clear();
     npcs.clear();
 
-    banditSpawnTimer = 0.0f;
+    banditSpawnTimer = 15.0f;
     nextBanditGroupId = 1;
 
     // --- settlements ---
@@ -90,7 +92,7 @@ void World::Init() {
         npc.settlementId = sid;
 
         int roll = GetRandomValue(0, 99);
-        npc.humanRole = (roll < 75)
+        npc.humanRole = (roll < 60)
             ? NPC::HumanRole::CIVILIAN
             : NPC::HumanRole::WARRIOR;
 
@@ -112,8 +114,9 @@ void World::Update(float dt) {
     // -------- bandit group spawning (DEBUG: often) --------
     banditSpawnTimer -= dt;
 
+
     if (banditSpawnTimer <= 0.0f) {
-        banditSpawnTimer = 3.0f; // frequent for debug
+        banditSpawnTimer = 45.0f; // frequent for debug
 
         int count = GetRandomValue(5, 8);
         Vector2 spawnPos = RandomOutsideSpawn(worldW, worldH);
@@ -135,7 +138,7 @@ void World::Update(float dt) {
             npc.banditGroupId = gid;
             npc.banditGroupDir = dir;
 
-            npc.speed = 20.0f;
+            npc.speed = 40.0f;
             npc.pos = {
                 spawnPos.x + GetRandomValue(-10, 10),
                 spawnPos.y + GetRandomValue(-10, 10)
@@ -163,6 +166,28 @@ void World::Update(float dt) {
             }),
         npcs.end()
     );
+    npcs.erase(
+            std::remove_if(npcs.begin(), npcs.end(),
+                           [](const NPC& n) { return !n.alive; }),
+            npcs.end()
+    );
+    for (auto& s : settlements) {
+        if (!s.alive) continue;
+
+        bool anyoneLeft = false;
+        for (const auto& npc : npcs) {
+            if (!npc.alive) continue;
+            if (npc.settlementId == (&s - &settlements[0]) &&
+                npc.humanRole != NPC::HumanRole::BANDIT) {
+                anyoneLeft = true;
+                break;
+            }
+        }
+
+        if (!anyoneLeft) {
+            s.alive = false;
+        }
+    }
 }
 
 // ------------------------------------------------------------

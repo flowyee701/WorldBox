@@ -3,7 +3,43 @@
 #include "civilian_behavior.h"
 
 void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
+    if (!npc.formationAssigned) {
+        // случайная позиция в радиусе отряда
+        float angle = RandomFloat(0.0f, 2.0f * PI);
+        float radius = RandomFloat(20.0f, 50.0f);
+
+        npc.formationOffset = {
+                cosf(angle) * radius,
+                sinf(angle) * radius
+        };
+
+        npc.formationAssigned = true;
+    }
+    npc.attackCooldown -= dt;
+    if (npc.attackCooldown < 0.0f)
+        npc.attackCooldown = 0.0f;
     const Settlement& s = world.settlements[npc.settlementId];
+    const float ATTACK_RADIUS = 170.0f;     // было ~260: реагируют ближе
+    const float ALERT_RADIUS  = 260.0f;     // радиус тревоги для всего отряда (см. пункт 3)
+    const float MAX_CHASE_RADIUS = 260.0f;  // не уходить далеко от поселения
+    NPC* alertBandit = nullptr;
+    float bestToCenter2 = 1e9f;
+
+// 1) ищем бандита, который ближе всего к центру поселения
+    for (auto& other : world.npcs) {
+        if (other.humanRole != NPC::HumanRole::BANDIT) continue;
+
+        float dx = other.pos.x - s.centerPx.x;
+        float dy = other.pos.y - s.centerPx.y;
+        float d2 = dx*dx + dy*dy;
+
+        if (d2 < bestToCenter2) {
+            bestToCenter2 = d2;
+            alertBandit = &other;
+        }
+    }
+
+    bool squadAlert = (alertBandit && bestToCenter2 < ALERT_RADIUS * ALERT_RADIUS);
 
     // -----------------------------
     // 1. Поиск ближайшего бандита
@@ -24,8 +60,6 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
         }
     }
 
-    const float ATTACK_RADIUS = 260.0f;
-    const float MAX_CHASE_RADIUS = 320.0f;
 
     bool banditNearby = closestBandit && closestDist2 < ATTACK_RADIUS * ATTACK_RADIUS;
 
@@ -39,13 +73,19 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     // -----------------------------
     // 2. Выбор режима
     // -----------------------------
-    if (banditNearby && distHome2 < MAX_CHASE_RADIUS * MAX_CHASE_RADIUS) {
+    if (squadAlert && distHome2 < MAX_CHASE_RADIUS * MAX_CHASE_RADIUS) {
         // ⚔ АТАКА
-        Vector2 toEnemy = {
-                closestBandit->pos.x - npc.pos.x,
-                closestBandit->pos.y - npc.pos.y
+        Vector2 targetPos = {
+                alertBandit->pos.x + npc.formationOffset.x,
+                alertBandit->pos.y + npc.formationOffset.y
         };
-        desiredDir = SafeNormalize(toEnemy);
+
+        Vector2 toTarget = {
+                targetPos.x - npc.pos.x,
+                targetPos.y - npc.pos.y
+        };
+
+        desiredDir = SafeNormalize(toTarget);
     }
     else {
         // проверим: есть ли вообще бандиты рядом
@@ -63,8 +103,15 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
 
         if (!anyBanditsNear) {
             // 🔙 ВОЗВРАТ В ПОСЕЛЕНИЕ
-            Vector2 toHome = { dxHome, dyHome };
-            desiredDir = SafeNormalize(toHome);
+            Vector2 homeTarget = {
+                    s.centerPx.x + npc.formationOffset.x,
+                    s.centerPx.y + npc.formationOffset.y
+            };
+
+            Vector2 toHome = {
+                    homeTarget.x - npc.pos.x,
+                    homeTarget.y - npc.pos.y
+            };
         } else {
             // 🛡 ПАТРУЛЬ
             Vector2 noise = {
@@ -122,4 +169,26 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
 
     npc.pos.x += npc.vel.x * dt;
     npc.pos.y += npc.vel.y * dt;
+    // атака
+    for (auto& other : world.npcs) {
+        if (!other.alive) continue;
+        if (other.humanRole != NPC::HumanRole::BANDIT) continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+
+        if (dx*dx + dy*dy < 16.0f * 16.0f) {
+            if (npc.attackCooldown <= 0.0f) {
+                other.hp -= npc.damage;
+                npc.attackCooldown = 1.5f;
+
+                if (other.hp <= 0.0f) {
+                    other.alive = false;
+                }
+            }
+            if (other.hp <= 0.0f) {
+                other.alive = false;
+            }
+        }
+    }
 }

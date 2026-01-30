@@ -59,4 +59,24 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt) {
 
     npc.pos.x += npc.vel.x * dt;
     npc.pos.y += npc.vel.y * dt;
+    // паника
+    bool danger = false;
+    for (const auto& other : world.npcs) {
+        if (other.humanRole == NPC::HumanRole::BANDIT) {
+            float dx = other.pos.x - npc.pos.x;
+            float dy = other.pos.y - npc.pos.y;
+            if (dx*dx + dy*dy < 220.0f * 220.0f) {
+                danger = true;
+                break;
+            }
+        }
+    }
+    if (danger) {
+        Vector2 away = {
+                npc.pos.x - s.centerPx.x,
+                npc.pos.y - s.centerPx.y
+        };
+        desiredDir = SafeNormalize(away);
+        speed *= 1.3f;
+    }
 }

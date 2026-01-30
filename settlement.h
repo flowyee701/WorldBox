@@ -3,11 +3,13 @@
 #include <vector>
 #include <cmath>
 
+
 struct Settlement {
     // клетки (а не пиксели)
     std::vector<Rectangle> zones; // x,y,w,h в КЛЕТКАХ
     Vector2 centerPx{};           // центр в ПИКСЕЛЯХ
     Color color{WHITE};
+    bool alive = true;
 };
 
 static constexpr int CELL_SIZE = 8;

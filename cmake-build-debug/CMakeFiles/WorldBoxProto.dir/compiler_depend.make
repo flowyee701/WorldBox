@@ -877,7 +877,8 @@ CMakeFiles/WorldBoxProto.dir/bandit_behavior.cpp.o: /Users/maksimbelavskij/CLion
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/npc.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h \
-  /opt/homebrew/include/raylib.h
+  /opt/homebrew/include/raylib.h \
+  /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o: /Users/maksimbelavskij/CLionProjects/WorldBoxProto/civilian_behavior.cpp \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/usr/include/Availability.h \
@@ -1754,7 +1755,8 @@ CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o: /Users/maksimbelavskij/CLi
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/npc.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h \
-  /opt/homebrew/include/raylib.h
+  /opt/homebrew/include/raylib.h \
+  /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o: /Users/maksimbelavskij/CLionProjects/WorldBoxProto/human_behavior.cpp \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/usr/include/Availability.h \
@@ -2634,7 +2636,8 @@ CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o: /Users/maksimbelavskij/CLionP
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/warrior_behavior.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h \
-  /opt/homebrew/include/raylib.h
+  /opt/homebrew/include/raylib.h \
+  /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/main.cpp.o: /Users/maksimbelavskij/CLionProjects/WorldBoxProto/main.cpp \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/usr/include/Availability.h \
@@ -4389,7 +4392,8 @@ CMakeFiles/WorldBoxProto.dir/warrior_behavior.cpp.o: /Users/maksimbelavskij/CLio
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/warrior_behavior.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h \
-  /opt/homebrew/include/raylib.h
+  /opt/homebrew/include/raylib.h \
+  /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/world.cpp.o: /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.cpp \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.5.sdk/usr/include/Availability.h \
@@ -5267,7 +5271,8 @@ CMakeFiles/WorldBoxProto.dir/world.cpp.o: /Users/maksimbelavskij/CLionProjects/W
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/npc.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h \
   /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h \
-  /opt/homebrew/include/raylib.h
+  /opt/homebrew/include/raylib.h \
+  /opt/homebrew/include/raymath.h
 
 
 /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.cpp:

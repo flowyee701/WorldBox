@@ -7,10 +7,19 @@ struct NPC {
     Vector2 vel{};
 
     int settlementId = -1;
+    // --- formation ---
+    Vector2 formationOffset = {0.0f, 0.0f};
+    bool formationAssigned = false;
 
     float speed  = 15.0f;
     float health = 100.0f;
     float banditLifeTime = 0.0f; // сколько секунд бандит живёт
+    // --- combat ---
+    float hp = 100.0f;
+    float damage = 10.0f;
+    bool alive = true;
+    // --- combat cooldown ---
+    float attackCooldown = 0.0f;   // сколько осталось до следующей атаки
 
     enum class Type { HUMAN, ANIMAL } type = Type::HUMAN;
 

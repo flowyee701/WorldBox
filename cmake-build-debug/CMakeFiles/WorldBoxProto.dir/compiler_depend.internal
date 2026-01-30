@@ -879,6 +879,7 @@ CMakeFiles/WorldBoxProto.dir/bandit_behavior.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h
  /opt/homebrew/include/raylib.h
+ /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/civilian_behavior.cpp
@@ -1757,6 +1758,7 @@ CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h
  /opt/homebrew/include/raylib.h
+ /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/human_behavior.cpp
@@ -2638,6 +2640,7 @@ CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/warrior_behavior.h
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h
  /opt/homebrew/include/raylib.h
+ /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/main.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/main.cpp
@@ -4395,6 +4398,7 @@ CMakeFiles/WorldBoxProto.dir/warrior_behavior.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/warrior_behavior.h
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h
  /opt/homebrew/include/raylib.h
+ /opt/homebrew/include/raymath.h
 
 CMakeFiles/WorldBoxProto.dir/world.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.cpp
@@ -5274,4 +5278,5 @@ CMakeFiles/WorldBoxProto.dir/world.cpp.o
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h
  /Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h
  /opt/homebrew/include/raylib.h
+ /opt/homebrew/include/raymath.h
 
