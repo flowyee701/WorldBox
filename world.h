@@ -7,6 +7,7 @@
 #include "npc.h"
 #include "settlement.h"
 
+
 struct World {
     int worldW = 1400;
     int worldH = 900;
@@ -23,7 +24,11 @@ struct World {
     // --- bandit spawning ---
     float banditSpawnTimer = 0.0f;
     int nextBanditGroupId = 1;
+    void SpawnCivilian(Vector2 pos);
+    void SpawnWarrior(Vector2 pos);
+    void MergeSettlementsIfNeeded();
 };
 inline float RandomFloat(float min, float max) {
     return min + (float)GetRandomValue(0, 10000) / 10000.0f * (max - min);
+
 }

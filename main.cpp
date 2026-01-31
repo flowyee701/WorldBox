@@ -2,12 +2,7 @@
 #include "raymath.h"
 #include "world.h"
 
-// простой clamp
-inline float ClampFloat(float v, float min, float max) {
-    if (v < min) return min;
-    if (v > max) return max;
-    return v;
-}
+enum class SpawnMode { NONE, CIVILIAN, WARRIOR };
 
 int main() {
     InitWindow(1000, 700, "WorldBoxProto");
@@ -24,49 +19,59 @@ int main() {
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
-    static Vector2 lastMouse = GetMousePosition();
+    SpawnMode mode = SpawnMode::CIVILIAN;
+
+    Vector2 lastMouse = GetMousePosition();
 
     while (!WindowShouldClose()) {
         float dt = GetFrameTime();
-        world.Update(dt);
 
-        // ===============================
-        // УПРАВЛЕНИЕ КАМЕРОЙ (ВАЖНО)
-        // ===============================
+        // ---- tool select ----
+        if (IsKeyPressed(KEY_ONE)) mode = SpawnMode::CIVILIAN;
+        if (IsKeyPressed(KEY_TWO)) mode = SpawnMode::WARRIOR;
 
-        // --- перетаскивание ПКМ ---
+        // ---- camera pan (RMB drag) ----
+        Vector2 mouse = GetMousePosition();
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-            Vector2 mouse = GetMousePosition();
             Vector2 delta = Vector2Subtract(lastMouse, mouse);
-
-            delta.x /= camera.zoom;
-            delta.y /= camera.zoom;
-
+            delta = Vector2Scale(delta, 1.0f / camera.zoom);
             camera.target = Vector2Add(camera.target, delta);
         }
+        lastMouse = mouse;
 
-        lastMouse = GetMousePosition();
-
-        // --- зум колёсиком ---
+        // ---- zoom ----
         float wheel = GetMouseWheelMove();
         if (wheel != 0.0f) {
             camera.zoom += wheel * 0.1f;
-            camera.zoom = ClampFloat(camera.zoom, 0.4f, 2.5f);
+            camera.zoom = Clamp(camera.zoom, 0.4f, 2.5f);
         }
 
-        // --- ограничение камеры ---
-        camera.target.x = ClampFloat(camera.target.x, 0.0f, world.worldW);
-        camera.target.y = ClampFloat(camera.target.y, 0.0f, world.worldH);
+        // ---- spawn on LMB (only if not panning) ----
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+            Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
 
-        // ===============================
-        // РЕНДЕР
-        // ===============================
+            // спавним только если внутри мира
+            if (mouseWorld.x >= 0 && mouseWorld.x <= world.worldW &&
+                mouseWorld.y >= 0 && mouseWorld.y <= world.worldH) {
+
+                if (mode == SpawnMode::CIVILIAN) world.SpawnCivilian(mouseWorld);
+                if (mode == SpawnMode::WARRIOR)  world.SpawnWarrior(mouseWorld);
+            }
+        }
+
+        world.Update(dt);
+
         BeginDrawing();
         ClearBackground(BLACK);
 
         BeginMode2D(camera);
         world.Draw();
         EndMode2D();
+
+        // UI hint
+        DrawText(mode == SpawnMode::CIVILIAN ? "Mode: 1 CIVILIAN" :
+                 mode == SpawnMode::WARRIOR  ? "Mode: 2 WARRIOR" : "Mode: NONE",
+                 10, 10, 20, RAYWHITE);
 
         EndDrawing();
     }

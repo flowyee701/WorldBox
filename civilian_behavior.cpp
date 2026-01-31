@@ -2,6 +2,19 @@
 #include "world.h"
 
 void CivilianBehavior::Update(World& world, NPC& npc, float dt) {
+    if (npc.settlementId < 0 || npc.settlementId >= (int)world.settlements.size() ||
+        !world.settlements[npc.settlementId].alive) {
+        // Пока нет поселения — просто свободное перемещение по миру
+        Vector2 dir = SafeNormalize(npc.wanderDir);
+        npc.vel = Vector2Scale(dir, npc.speed);
+        npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
+
+        // держим в границах карты
+        npc.pos.x = Clamp(npc.pos.x, 0.0f, (float)world.worldW);
+        npc.pos.y = Clamp(npc.pos.y, 0.0f, (float)world.worldH);
+
+        return;
+    }
     const Settlement& s = world.settlements[npc.settlementId];
 
     // ---------- обновление таймеров ----------

@@ -18,7 +18,71 @@ static Vector2 RandomOutsideSpawn(int w, int h) {
         default:return { (float)GetRandomValue(0, w), (float)h + margin };// bottom
     }
 }
+static bool RectsOverlap(const Rectangle& a, const Rectangle& b) {
+    return (a.x < b.x + b.width) && (a.x + a.width > b.x) &&
+           (a.y < b.y + b.height) && (a.y + a.height > b.y);
+}
+static Rectangle ZoneToPxRect(const Rectangle& z) {
+    return Rectangle{
+            z.x * CELL_SIZE,
+            z.y * CELL_SIZE,
+            z.width * CELL_SIZE,
+            z.height * CELL_SIZE
+    };
+}
+
 // ------------------------------------------------------------
+void World::MergeSettlementsIfNeeded() {
+    for (int i = 0; i < (int)settlements.size(); i++) {
+        if (!settlements[i].alive) continue;
+
+        for (int j = i + 1; j < (int)settlements.size(); j++) {
+            if (!settlements[j].alive) continue;
+
+            bool overlap = false;
+
+            for (const auto& ra : settlements[i].zones) {
+                Rectangle aPx = {
+                        ra.x * CELL_SIZE,
+                        ra.y * CELL_SIZE,
+                        ra.width * CELL_SIZE,
+                        ra.height * CELL_SIZE
+                };
+
+                for (const auto& rb : settlements[j].zones) {
+                    Rectangle bPx = {
+                            rb.x * CELL_SIZE,
+                            rb.y * CELL_SIZE,
+                            rb.width * CELL_SIZE,
+                            rb.height * CELL_SIZE
+                    };
+
+                    if (CheckCollisionRecs(aPx, bPx)) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                if (overlap) break;
+            }
+
+            if (!overlap) continue;
+
+            // ---- MERGE j -> i ----
+            for (const auto& r : settlements[j].zones) {
+                settlements[i].zones.push_back(r);
+            }
+
+            settlements[i].centerPx = ComputeSettlementCenterPx(settlements[i]);
+
+            for (auto& npc : npcs) {
+                if (npc.settlementId == j)
+                    npc.settlementId = i;
+            }
+
+            settlements[j].alive = false;
+        }
+    }
+}
 
 static Vector2 RandomEdgeSpawn(int w, int h) {
     int side = GetRandomValue(0, 3);
@@ -28,6 +92,97 @@ static Vector2 RandomEdgeSpawn(int w, int h) {
         case 2: return { (float)GetRandomValue(0, w), 0.0f };        // top
         default:return { (float)GetRandomValue(0, w), (float)h };   // bottom
     }
+}
+void World::SpawnCivilian(Vector2 pos) {
+    NPC npc;
+    npc.type = NPC::Type::HUMAN;
+    npc.humanRole = NPC::HumanRole::CIVILIAN;
+
+    npc.pos = pos;
+    npc.vel = {0, 0};
+
+    npc.hp = 100.0f;
+    npc.damage = 0.0f;
+
+    // 1) если клик внутри существующего поселения — просто присоединяем
+    int sid = -1;
+    for (int i = 0; i < (int)settlements.size(); i++) {
+        if (!settlements[i].alive) continue;
+        if (PointInSettlementPx(settlements[i], pos)) { sid = i; break; }
+    }
+
+    // 2) иначе — ищем рядом "свободных" жителей без поселения
+    if (sid == -1) {
+        std::vector<int> nearbyFreeCivs;
+        for (int i = 0; i < (int)npcs.size(); i++) {
+            const auto& o = npcs[i];
+            if (!o.alive) continue;
+            if (o.humanRole != NPC::HumanRole::CIVILIAN) continue;
+            if (o.settlementId != -1) continue;
+
+            float dx = o.pos.x - pos.x;
+            float dy = o.pos.y - pos.y;
+            if (dx*dx + dy*dy < 90.0f*90.0f) nearbyFreeCivs.push_back(i);
+        }
+
+        // если есть 2 рядом — создаём новое поселение (3-й будет текущий npc)
+        if ((int)nearbyFreeCivs.size() >= 2) {
+            Settlement s;
+            s.alive = true;
+            s.color = Color{
+                    (unsigned char)GetRandomValue(80,255),
+                    (unsigned char)GetRandomValue(80,255),
+                    (unsigned char)GetRandomValue(80,255),
+                    255
+            };
+
+            int cx = (int)(pos.x / CELL_SIZE);
+            int cy = (int)(pos.y / CELL_SIZE);
+            s.zones.push_back({ (float)(cx-4), (float)(cy-4), 8, 8 });
+            s.centerPx = ComputeSettlementCenterPx(s);
+
+            settlements.push_back(s);
+            sid = (int)settlements.size() - 1;
+
+            // присваиваем этим двум + новому
+            npcs[nearbyFreeCivs[0]].settlementId = sid;
+            npcs[nearbyFreeCivs[1]].settlementId = sid;
+        }
+    }
+
+    npc.settlementId = sid;  // может остаться -1, если это 1-й/2-й житель
+    npcs.push_back(npc);
+}
+
+void World::SpawnWarrior(Vector2 pos) {
+    NPC npc;
+    npc.type = NPC::Type::HUMAN;
+    npc.humanRole = NPC::HumanRole::WARRIOR;
+
+    npc.pos = pos;
+    npc.vel = {0,0};
+
+    npc.hp = 200.0f;
+    npc.damage = 20.0f;
+
+    npc.settlementId = -1;
+
+    int groupId = -1;
+    for (const auto& other : npcs) {
+        if (other.humanRole != NPC::HumanRole::WARRIOR) continue;
+
+        float dx = other.pos.x - pos.x;
+        float dy = other.pos.y - pos.y;
+        if (dx*dx + dy*dy < 80*80) {
+            groupId = other.banditGroupId; // временно используем как squadId
+            break;
+        }
+    }
+
+    if (groupId == -1) groupId = nextBanditGroupId++;
+
+    npc.banditGroupId = groupId;
+    npcs.push_back(npc);
 }
 
 static void DrawBanditTriangle(Vector2 pos, float size, Color color) {
@@ -49,62 +204,11 @@ void World::Init() {
     settlements.clear();
     npcs.clear();
 
-    banditSpawnTimer = 15.0f;
+    banditSpawnTimer = 0.0f;
     nextBanditGroupId = 1;
-
-    // --- settlements ---
-    {
-        Settlement s; s.color = RED;
-        s.zones.push_back({20,15,28,10});
-        s.zones.push_back({20,25,10,18});
-        s.centerPx = ComputeSettlementCenterPx(s);
-        settlements.push_back(s);
-    }
-    {
-        Settlement s; s.color = BLUE;
-        s.zones.push_back({90,18,30,10});
-        s.zones.push_back({102,28,6,22});
-        s.centerPx = ComputeSettlementCenterPx(s);
-        settlements.push_back(s);
-    }
-    {
-        Settlement s; s.color = GREEN;
-        s.zones.push_back({55,70,26,14});
-        s.zones.push_back({65,60,12,10});
-        s.centerPx = ComputeSettlementCenterPx(s);
-        settlements.push_back(s);
-    }
-
-    // --- spawn ONLY civilians + warriors ---
-    auto RandomCellInsideSettlement = [&](const Settlement& s) -> Vector2 {
-        const Rectangle& r = s.zones[GetRandomValue(0, (int)s.zones.size() - 1)];
-        int cx = GetRandomValue((int)r.x, (int)r.x + (int)r.width - 1);
-        int cy = GetRandomValue((int)r.y, (int)r.y + (int)r.height - 1);
-        return CellToPxCenter(cx, cy);
-    };
-
-    for (int i = 0; i < 60; i++) {
-        int sid = GetRandomValue(0, (int)settlements.size() - 1);
-        const Settlement& s = settlements[sid];
-
-        NPC npc;
-        npc.type = NPC::Type::HUMAN;
-        npc.settlementId = sid;
-
-        int roll = GetRandomValue(0, 99);
-        npc.humanRole = (roll < 60)
-            ? NPC::HumanRole::CIVILIAN
-            : NPC::HumanRole::WARRIOR;
-
-        npc.speed = (npc.humanRole == NPC::HumanRole::WARRIOR) ? 7.0f : 5.0f;
-        npc.pos = RandomCellInsideSettlement(s);
-
-        Vector2 dir = SafeNormalize(RandomUnit2D());
-
-
-        npcs.push_back(npc);
-    }
 }
+
+
 
 // ------------------------------------------------------------
 // Update
@@ -188,11 +292,18 @@ void World::Update(float dt) {
             s.alive = false;
         }
     }
+    MergeSettlementsIfNeeded();
 }
 
 // ------------------------------------------------------------
 // Draw
 // ------------------------------------------------------------
+Color GetSafeSettlementColor(const World& w, int sid) {
+    if (sid < 0 || sid >= (int)w.settlements.size() || !w.settlements[sid].alive) {
+        return Color{220, 220, 220, 255}; // серый для "без поселения"
+    }
+    return w.settlements[sid].color;
+}
 
 void World::Draw() const {
     // grass
@@ -230,28 +341,21 @@ void World::Draw() const {
     for (const auto& npc : npcs) {
         float size = CELL_SIZE * 0.4f;
 
+        Color c = GetSafeSettlementColor(*this, npc.settlementId);
+
         switch (npc.humanRole) {
             case NPC::HumanRole::CIVILIAN:
-                DrawCircleV(npc.pos, size, settlements[npc.settlementId].color);
+                DrawCircleV(npc.pos, size, c);
                 break;
-
             case NPC::HumanRole::WARRIOR:
-                DrawRectangle(
-                    npc.pos.x - size,
-                    npc.pos.y - size,
-                    size * 2,
-                    size * 2,
-                    settlements[npc.settlementId].color
-                );
+                DrawRectangle(npc.pos.x - size, npc.pos.y - size, size*2, size*2, c);
                 break;
-
             case NPC::HumanRole::BANDIT:
-                DrawBanditTriangle(
-                    npc.pos,
-                    CELL_SIZE * 0.7f,
-                    Color{160, 80, 200, 255}
-                );
+                DrawBanditTriangle(npc.pos, CELL_SIZE*0.7f, Color{160,80,200,255});
+                break;
+            default:
                 break;
         }
     }
 }
+
