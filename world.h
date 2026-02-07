@@ -8,29 +8,37 @@
 #include "settlement.h"
 
 
-struct World {
-    int worldW = 1400;
-    int worldH = 900;
+struct Settlement;
+
+class World {
+public:
+    int worldW = 0;
+    int worldH = 0;
     int cols = 0;
     int rows = 0;
 
     std::vector<Settlement> settlements;
     std::vector<NPC> npcs;
-    Vector2 ComputeSettlementCenterPx(const Settlement& s);
-    Rectangle ComputeSettlementBoundsPx(const Settlement& s);
+
+    // ✅ ВОТ ЭТО ВАЖНО
+    float banditSpawnTimer = 0.0f;
+    int nextBanditGroupId = 1;
 
     void Init();
     void Update(float dt);
     void Draw() const;
 
-    // --- bandit spawning ---
-    float banditSpawnTimer = 0.0f;
-    int nextBanditGroupId = 1;
+    bool PointInSettlementPx(const Settlement& s, Vector2 pos) const;
+    Vector2 ComputeSettlementCenterPx(const Settlement& s);
+    Rectangle ComputeSettlementBoundsPx(const Settlement& s);
+
+    void MergeSettlementsIfNeeded();
     void SpawnCivilian(Vector2 pos);
     void SpawnWarrior(Vector2 pos);
-    void MergeSettlementsIfNeeded();
 };
 inline float RandomFloat(float min, float max) {
     return min + (float)GetRandomValue(0, 10000) / 10000.0f * (max - min);
 
 }
+
+

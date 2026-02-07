@@ -36,116 +36,94 @@ static Rectangle ZoneToPxRect(const Rectangle &z) {
             z.height * CELL_SIZE
     };
 }
+bool World::PointInSettlementPx(const Settlement& s, Vector2 pos) const {
+    int cx = (int)(pos.x / CELL_SIZE);
+    int cy = (int)(pos.y / CELL_SIZE);
 
-Vector2 World::ComputeSettlementCenterPx(const Settlement &s) {
-    Vector2 sum{0.0f, 0.0f};
-    int count = 0;
+    if (cx < 0 || cy < 0 || cx >= cols || cy >= rows)
+        return false;
 
-    for (const auto &z: s.zones) {
-        float cx = (z.x + z.width * 0.5f) * CELL_SIZE;
-        float cy = (z.y + z.height * 0.5f) * CELL_SIZE;
-
-        sum.x += cx;
-        sum.y += cy;
-        count++;
-    }
-
-    if (count == 0) return sum;
-
-    sum.x /= (float) count;
-    sum.y /= (float) count;
-    return sum;
+    int tileId = cy * cols + cx;
+    return s.tiles.find(tileId) != s.tiles.end();
 }
 
-Rectangle World::ComputeSettlementBoundsPx(const Settlement &s) {
-    bool first = true;
-    Rectangle out{0, 0, 0, 0};
+Vector2 World::ComputeSettlementCenterPx(const Settlement& s) {
+    if (s.tiles.empty()) return {0.0f, 0.0f};
 
-    for (const auto &z: s.zones) {
-        Rectangle r{
-                z.x * CELL_SIZE,
-                z.y * CELL_SIZE,
-                z.width * CELL_SIZE,
-                z.height * CELL_SIZE
-        };
+    double sx = 0.0, sy = 0.0;
+    int n = 0;
 
-        if (first) {
-            out = r;
-            first = false;
-        } else {
-            float minX = std::min(out.x, r.x);
-            float minY = std::min(out.y, r.y);
-            float maxX = std::max(out.x + out.width, r.x + r.width);
-            float maxY = std::max(out.y + out.height, r.y + r.height);
+    for (int tile : s.tiles) {
+        int cx = tile % cols;
+        int cy = tile / cols;
 
-            out.x = minX;
-            out.y = minY;
-            out.width = maxX - minX;
-            out.height = maxY - minY;
-        }
+        sx += (cx + 0.5) * CELL_SIZE;
+        sy += (cy + 0.5) * CELL_SIZE;
+        n++;
     }
 
-    return out;
+    return { (float)(sx / n), (float)(sy / n) };
+}
+
+Rectangle World::ComputeSettlementBoundsPx(const Settlement& s) {
+    if (s.tiles.empty()) return {0,0,0,0};
+
+    int minX = cols, minY = rows;
+    int maxX = -1, maxY = -1;
+
+    for (int tile : s.tiles) {
+        int cx = tile % cols;
+        int cy = tile / cols;
+
+        if (cx < minX) minX = cx;
+        if (cy < minY) minY = cy;
+        if (cx > maxX) maxX = cx;
+        if (cy > maxY) maxY = cy;
+    }
+
+    return {
+            (float)(minX * CELL_SIZE),
+            (float)(minY * CELL_SIZE),
+            (float)((maxX - minX + 1) * CELL_SIZE),
+            (float)((maxY - minY + 1) * CELL_SIZE)
+    };
 }
 
 
 // ------------------------------------------------------------
 void World::MergeSettlementsIfNeeded() {
-    for (int i = 0; i < (int) settlements.size(); i++) {
+    for (int i = 0; i < (int)settlements.size(); i++) {
         if (!settlements[i].alive) continue;
 
-        for (int j = i + 1; j < (int) settlements.size(); j++) {
+        for (int j = i + 1; j < (int)settlements.size(); j++) {
             if (!settlements[j].alive) continue;
 
-            bool overlap = false;
+            bool touching = false;
 
-            for (const auto &ra: settlements[i].zones) {
-                Rectangle aPx = {
-                        ra.x * CELL_SIZE,
-                        ra.y * CELL_SIZE,
-                        ra.width * CELL_SIZE,
-                        ra.height * CELL_SIZE
-                };
-
-                for (const auto &rb: settlements[j].zones) {
-                    Rectangle bPx = {
-                            rb.x * CELL_SIZE,
-                            rb.y * CELL_SIZE,
-                            rb.width * CELL_SIZE,
-                            rb.height * CELL_SIZE
-                    };
-
-                    if (CheckCollisionRecs(aPx, bPx)) {
-                        overlap = true;
-                        break;
-                    }
+            for (int tile : settlements[j].tiles) {
+                if (settlements[i].tiles.count(tile)) {
+                    touching = true;
+                    break;
                 }
-                if (overlap) break;
             }
 
-            if (!overlap) continue;
+            if (!touching) continue;
 
-            // ---------- ОБЪЕДИНЕНИЕ j -> i ----------
+            // объединяем j -> i
+            for (int tile : settlements[j].tiles)
+                settlements[i].tiles.insert(tile);
 
-            // 1. зоны
-            for (const auto &r: settlements[j].zones)
-                settlements[i].zones.push_back(r);
-
-            // 2. NPC перепривязываем
-            for (auto &npc: npcs) {
+            for (auto& npc : npcs)
                 if (npc.settlementId == j)
                     npc.settlementId = i;
-            }
 
-            // 3. помечаем второе поселение мёртвым
+            settlements[j].tiles.clear();
             settlements[j].alive = false;
 
-            // 4. пересчитываем общую границу
-            settlements[i].boundsPx = ComputeSettlementBoundsPx(settlements[i]);
             settlements[i].centerPx = ComputeSettlementCenterPx(settlements[i]);
+            settlements[i].boundsPx = ComputeSettlementBoundsPx(settlements[i]);
         }
     }
-
 }
 
 static Vector2 RandomEdgeSpawn(int w, int h) {
@@ -209,36 +187,36 @@ void World::SpawnCivilian(Vector2 pos) {
             Settlement s;
             s.alive = true;
 
-// 1. зона (СНАЧАЛА)
-            int cx = (int) (pos.x / CELL_SIZE);
-            int cy = (int) (pos.y / CELL_SIZE);
-            s.zones.push_back({(float) (cx - 8), (float) (cy - 8), 16, 16});
+            int cx = (int)(pos.x / CELL_SIZE);
+            int cy = (int)(pos.y / CELL_SIZE);
 
-// 2. цвет
+            constexpr int R = 8; // радиус поселения в клетках
+
+            for (int dy = -R; dy <= R; dy++) {
+                for (int dx = -R; dx <= R; dx++) {
+                    int tx = cx + dx;
+                    int ty = cy + dy;
+                    if (tx < 0 || ty < 0 || tx >= cols || ty >= rows) continue;
+                    s.tiles.insert(ty * cols + tx);
+                }
+            }
+
             s.color = Color{
-                    (unsigned char) GetRandomValue(80, 255),
-                    (unsigned char) GetRandomValue(80, 255),
-                    (unsigned char) GetRandomValue(80, 255),
+                    (unsigned char)GetRandomValue(80,255),
+                    (unsigned char)GetRandomValue(80,255),
+                    (unsigned char)GetRandomValue(80,255),
                     255
             };
 
-// 3. добавляем поселение
             settlements.push_back(s);
-            int sid = (int) settlements.size() - 1;
+            int sid = (int)settlements.size() - 1;
 
-// 4. считаем геометрию
             settlements[sid].centerPx = ComputeSettlementCenterPx(settlements[sid]);
             settlements[sid].boundsPx = ComputeSettlementBoundsPx(settlements[sid]);
 
-//  5. ПРИВЯЗЫВАЕМ НОВОГО NPC
             npc.settlementId = sid;
-
-//  6. ПРИВЯЗЫВАЕМ ДВУХ СТАРЫХ
-            int idA = nearbyFreeCivs[0];
-            int idB = nearbyFreeCivs[1];
-            npcs[idA].settlementId = sid;
-            npcs[idB].settlementId = sid;
-
+            npcs[nearbyFreeCivs[0]].settlementId = sid;
+            npcs[nearbyFreeCivs[1]].settlementId = sid;
         }
         npcs.push_back(npc);
     }
@@ -248,30 +226,21 @@ void World::SpawnWarrior(Vector2 pos) {
     NPC npc;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::WARRIOR;
-
     npc.pos = pos;
-    npc.vel = {0, 0};
-
+    npc.vel = {0,0};
     npc.hp = 200.0f;
     npc.damage = 20.0f;
-
     npc.settlementId = -1;
 
-    int groupId = -1;
-    for (const auto &other: npcs) {
-        if (other.humanRole != NPC::HumanRole::WARRIOR) continue;
-
-        float dx = other.pos.x - pos.x;
-        float dy = other.pos.y - pos.y;
-        if (dx * dx + dy * dy < 80 * 80) {
-            groupId = other.banditGroupId; // временно используем как squadId
+    // 🔹 НОВОЕ: если клик внутри поселения — сразу привязываем
+    for (int i = 0; i < (int)settlements.size(); i++) {
+        if (!settlements[i].alive) continue;
+        if (PointInSettlementPx(settlements[i], pos)) {
+            npc.settlementId = i;
             break;
         }
     }
 
-    if (groupId == -1) groupId = nextBanditGroupId++;
-
-    npc.banditGroupId = groupId;
     npcs.push_back(npc);
 }
 
@@ -407,26 +376,23 @@ void World::Draw() const {
     }
 
     // settlements
-    for (const auto &s: settlements) {
+    for (const auto& s : settlements) {
+        if (!s.alive) continue;
+
         Color fill = Fade(s.color, 0.25f);
-        for (const auto &r: s.zones) {
-            for (int cy = (int) r.y; cy < (int) r.y + (int) r.height; cy++) {
-                for (int cx = (int) r.x; cx < (int) r.x + (int) r.width; cx++) {
-                    if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) continue;
-                    DrawRectangle(cx * CELL_SIZE, cy * CELL_SIZE, CELL_SIZE, CELL_SIZE, fill);
-                }
-            }
-            Color fill = Fade(s.color, 0.25f);
-            for (const auto &r: s.zones) {
-                for (int cy = (int) r.y; cy < (int) r.y + (int) r.height; cy++) {
-                    for (int cx = (int) r.x; cx < (int) r.x + (int) r.width; cx++) {
-                        DrawRectangle(cx * CELL_SIZE, cy * CELL_SIZE,
-                                      CELL_SIZE, CELL_SIZE, fill);
-                    }
-                }
-            }
+
+        for (int tile : s.tiles) {
+            int cx = tile % cols;
+            int cy = tile / cols;
+
+            DrawRectangle(
+                    cx * CELL_SIZE,
+                    cy * CELL_SIZE,
+                    CELL_SIZE,
+                    CELL_SIZE,
+                    fill
+            );
         }
-//        DrawCircleV(s.centerPx, 3, s.color);
     }
 
     // NPCs

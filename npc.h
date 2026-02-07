@@ -10,6 +10,7 @@ struct NPC {
     Vector2 pos{0, 0};
     Vector2 vel{0, 0};
 
+
     // -------------------------------------------------
     // Identity
     // -------------------------------------------------
@@ -35,6 +36,8 @@ struct NPC {
     // -------------------------------------------------
     Vector2 wanderDir = {0.0f, 0.0f};
     float wanderTimer = 0.0f;
+    Vector2 wanderTarget{0,0};
+    int homeTile = -1;
 
     bool isIdle = false;
     float idleTimer = 0.0f;

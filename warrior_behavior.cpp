@@ -3,6 +3,27 @@
 #include "civilian_behavior.h"
 
 void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
+    // ---------- привязка к поселению ----------
+    if (npc.settlementId == -1) {
+        for (int i = 0; i < (int)world.settlements.size(); i++) {
+            if (!world.settlements[i].alive) continue;
+
+            if (PointInSettlementPx(world.settlements[i], npc.pos)) {
+                npc.settlementId = i;
+                npc.homeTile = -1; // сброс цели
+                npc.formationAssigned = false;
+                break;
+            }
+        }
+    }
+
+    if (npc.settlementId < 0 ||
+        npc.settlementId >= (int)world.settlements.size() ||
+        !world.settlements[npc.settlementId].alive) {
+        npc.settlementId = -1;
+    }
+
+
     if (npc.settlementId == -1) {
         npc.wanderTimer -= dt;
         if (npc.wanderTimer <= 0.0f) {
@@ -17,15 +38,6 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
 
         npc.pos.x += npc.vel.x * dt;
         npc.pos.y += npc.vel.y * dt;
-
-        // попытка привязки к поселению
-        for (int i = 0; i < (int)world.settlements.size(); i++) {
-            if (!world.settlements[i].alive) continue;
-            if (PointInSettlementPx(world.settlements[i], npc.pos)) {
-                npc.settlementId = i;
-                break;
-            }
-        }
 
         return;
     }
@@ -164,6 +176,9 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     float distHome2 = dxHome*dxHome + dyHome*dyHome;
 
     Vector2 desiredDir;
+    if (!npc.inCombat) {
+        npc.formationAssigned = false;
+    }
 
     // -----------------------------
     // 2. Выбор режима
@@ -198,15 +213,25 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
 
         if (!anyBanditsNear) {
             // 🔙 ВОЗВРАТ В ПОСЕЛЕНИЕ
-            Vector2 homeTarget = {
-                    s.centerPx.x + npc.formationOffset.x,
-                    s.centerPx.y + npc.formationOffset.y
-            };
+            // 🔙 ВОЗВРАТ В ПОСЕЛЕНИЕ (к своему тайлу)
+            if (npc.homeTile == -1 && !s.tiles.empty()) {
+                int index = GetRandomValue(0, (int)s.tiles.size() - 1);
+                auto it = s.tiles.begin();
+                std::advance(it, index);
+                npc.homeTile = *it;
+            }
 
-            Vector2 toHome = {
-                    homeTarget.x - npc.pos.x,
-                    homeTarget.y - npc.pos.y
-            };
+            if (npc.homeTile != -1) {
+                int cx = npc.homeTile % world.cols;
+                int cy = npc.homeTile / world.cols;
+
+                Vector2 homeTarget = {
+                        (cx + 0.5f) * CELL_SIZE + npc.formationOffset.x,
+                        (cy + 0.5f) * CELL_SIZE + npc.formationOffset.y
+                };
+
+                desiredDir = SafeNormalize(Vector2Subtract(homeTarget, npc.pos));
+            }
         } else {
             // 🛡 ПАТРУЛЬ
             Vector2 noise = {

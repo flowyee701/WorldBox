@@ -1,16 +1,24 @@
 #pragma once
+
 #include "raylib.h"
 #include <vector>
 #include <cmath>
+#include <unordered_set>
 
 
 struct Settlement {
-    // клетки (а не пиксели)
-    std::vector<Rectangle> zones; // x,y,w,h в КЛЕТКАХ
-    Vector2 centerPx{};           // центр в ПИКСЕЛЯХ
-    Color color{WHITE};
     bool alive = true;
-    Rectangle boundsPx; // <-- ВАЖНО: единая граница в ПИКСЕЛЯХ
+    Color color{255,255,255,255};
+
+    // НОВОЕ: территория как набор клеток
+    std::unordered_set<int> tiles;
+
+    // геометрия (в пикселях)
+    Vector2 centerPx{0,0};
+    Rectangle boundsPx{0,0,0,0};
+
+    // legacy — больше НЕ используем
+    // std::vector<Rectangle> zones;
 };
 
 static constexpr int CELL_SIZE = 8;
@@ -23,10 +31,6 @@ inline bool PointInSettlementPx(const Settlement& s, Vector2 pPx) {
     int cx = static_cast<int>(pPx.x / CELL_SIZE);
     int cy = static_cast<int>(pPx.y / CELL_SIZE);
 
-    for (const auto& r : s.zones) {
-        int rx = (int)r.x, ry = (int)r.y, rw = (int)r.width, rh = (int)r.height;
-        if (cx >= rx && cx < rx + rw && cy >= ry && cy < ry + rh) return true;
-    }
     return false;
 }
 

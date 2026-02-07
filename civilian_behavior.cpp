@@ -50,56 +50,65 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt) {
         npc.idleTimer -= dt;
         if (npc.idleTimer <= 0.0f) {
             npc.isIdle = false;
-            npc.moveTimer = RandomFloat(2.0f, 5.0f); // идём 2–5 сек
+            npc.moveTimer = RandomFloat(3.5f, 7.0f); // идём 2–5 сек
         }
     } else {
         npc.moveTimer -= dt;
         if (npc.moveTimer <= 0.0f) {
             npc.isIdle = true;
-            npc.idleTimer = RandomFloat(0.5f, 2.0f); // пауза 0.5–2 сек
+            npc.idleTimer = RandomFloat(0.25f, 0.8f); // пауза 0.5–2 сек
             npc.vel = {0.0f, 0.0f};
         }
     }
-
+// обновляем направление ТОЛЬКО когда начинаем движение
+    if (!npc.isIdle && npc.moveTimer > 0.0f && npc.moveTimer < dt + 0.05f) {
+        npc.wanderDir = SafeNormalize(RandomUnit2D());
+    }
     // ---------- если отдыхаем ----------
     if (npc.isIdle) {
         return;
     }
 
     // ---------- плавное блуждание ----------
-    Vector2 noise = {
-            RandomFloat(-1.0f, 1.0f),
-            RandomFloat(-1.0f, 1.0f)
-    };
-    noise = SafeNormalize(noise);
 
-    npc.wanderDir.x = npc.wanderDir.x * 0.9f + noise.x * 0.1f;
-    npc.wanderDir.y = npc.wanderDir.y * 0.9f + noise.y * 0.1f;
-    npc.wanderDir = SafeNormalize(npc.wanderDir);
 
     Vector2 desiredDir;
 
     bool inside = PointInSettlementPx(s, npc.pos);
-    if (inside) {
-        desiredDir = npc.wanderDir;
+
+    if (!inside) {
+        // выбираем домашний тайл ОДИН РАЗ
+        if (npc.homeTile == -1 && !s.tiles.empty()) {
+            int index = GetRandomValue(0, (int)s.tiles.size() - 1);
+            auto it = s.tiles.begin();
+            std::advance(it, index);
+            npc.homeTile = *it;
+        }
+
+        if (npc.homeTile != -1) {
+            int cx = npc.homeTile % world.cols;
+            int cy = npc.homeTile / world.cols;
+
+            Vector2 target = {
+                    (cx + 0.5f) * CELL_SIZE,
+                    (cy + 0.5f) * CELL_SIZE
+            };
+
+            desiredDir = SafeNormalize(Vector2Subtract(target, npc.pos));
+        } else {
+            desiredDir = npc.wanderDir;
+        }
     } else {
-        // мягко возвращаемся в поселение
-        Vector2 toCenter = {
-                s.centerPx.x - npc.pos.x,
-                s.centerPx.y - npc.pos.y
-        };
-        desiredDir = SafeNormalize(toCenter);
+        npc.homeTile = -1;
+        desiredDir = npc.wanderDir;
     }
 
     // ---------- скорость (умеренная) ----------
-    float speed = npc.speed * 0.95f;
+    float speed = npc.speed * 1.15f;
 
     // ---------- инерция ----------
-    npc.vel.x = npc.vel.x * 0.7f + desiredDir.x * speed * 0.3f;
-    npc.vel.y = npc.vel.y * 0.7f + desiredDir.y * speed * 0.3f;
-
-    npc.pos.x += npc.vel.x * dt;
-    npc.pos.y += npc.vel.y * dt;
+    npc.vel = Vector2Scale(desiredDir, speed);
+    npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
     // паника
     bool danger = false;
     for (const auto& other : world.npcs) {
@@ -113,11 +122,28 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt) {
         }
     }
     if (danger) {
-        Vector2 away = {
-                npc.pos.x - s.centerPx.x,
-                npc.pos.y - s.centerPx.y
-        };
-        desiredDir = SafeNormalize(away);
-        speed *= 1.3f;
+        // паника: убегаем от ближайшего бандита, а не от центра
+        Vector2 away{0,0};
+        float minDist = 1e9f;
+
+        for (const auto& other : world.npcs) {
+            if (other.humanRole != NPC::HumanRole::BANDIT) continue;
+
+            float dx = npc.pos.x - other.pos.x;
+            float dy = npc.pos.y - other.pos.y;
+            float d2 = dx*dx + dy*dy;
+
+            if (d2 < minDist) {
+                minDist = d2;
+                away = { dx, dy };
+            }
+        }
+
+        if (minDist < 220.0f * 220.0f) {
+            desiredDir = SafeNormalize(away);
+            speed *= 1.3f;
+        }
     }
+    npc.vel = Vector2Scale(desiredDir, speed);
+    npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
 }
