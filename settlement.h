@@ -10,6 +10,7 @@ struct Settlement {
     Vector2 centerPx{};           // центр в ПИКСЕЛЯХ
     Color color{WHITE};
     bool alive = true;
+    Rectangle boundsPx; // <-- ВАЖНО: единая граница в ПИКСЕЛЯХ
 };
 
 static constexpr int CELL_SIZE = 8;
@@ -40,19 +41,3 @@ inline Vector2 RandomUnit2D() {
     return { cosf(a), sinf(a) };
 }
 
-inline Vector2 ComputeSettlementCenterPx(const Settlement& s) {
-    double sumArea = 0.0, sumX = 0.0, sumY = 0.0;
-
-    for (const auto& r : s.zones) {
-        double rx = r.x, ry = r.y, rw = r.width, rh = r.height;
-        double area = rw * rh;
-        sumArea += area;
-        sumX += (rx + rw * 0.5) * area;
-        sumY += (ry + rh * 0.5) * area;
-    }
-    if (sumArea <= 0.0) return {0, 0};
-
-    double cx = sumX / sumArea;
-    double cy = sumY / sumArea;
-    return CellToPxCenter((int)cx, (int)cy);
-}

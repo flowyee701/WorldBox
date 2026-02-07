@@ -4,16 +4,6 @@
 #include "settlement.h"
 #include "npc.h"
 #include <algorithm>
-#include <cmath>
-
-// ===== Bomb constructor =====
-Bomb::Bomb(float x, float y, float fuse_time, float explosion_radius)
-    : x(x), y(y), timer(fuse_time), radius(explosion_radius), exploded(false) {}
-
-// ===== ExplosionEffect constructor & update =====
-void ExplosionEffect::Update(float dt) {
-    life += dt;
-}
 
 // ------------------------------------------------------------
 // Helpers
@@ -40,6 +30,57 @@ static Rectangle ZoneToPxRect(const Rectangle& z) {
             z.height * CELL_SIZE
     };
 }
+Vector2 World::ComputeSettlementCenterPx(const Settlement& s) {
+    Vector2 sum{0.0f, 0.0f};
+    int count = 0;
+
+    for (const auto& z : s.zones) {
+        float cx = (z.x + z.width  * 0.5f) * CELL_SIZE;
+        float cy = (z.y + z.height * 0.5f) * CELL_SIZE;
+
+        sum.x += cx;
+        sum.y += cy;
+        count++;
+    }
+
+    if (count == 0) return sum;
+
+    sum.x /= (float)count;
+    sum.y /= (float)count;
+    return sum;
+}
+
+Rectangle World::ComputeSettlementBoundsPx(const Settlement& s) {
+    bool first = true;
+    Rectangle out{0, 0, 0, 0};
+
+    for (const auto& z : s.zones) {
+        Rectangle r{
+                z.x * CELL_SIZE,
+                z.y * CELL_SIZE,
+                z.width  * CELL_SIZE,
+                z.height * CELL_SIZE
+        };
+
+        if (first) {
+            out = r;
+            first = false;
+        } else {
+            float minX = std::min(out.x, r.x);
+            float minY = std::min(out.y, r.y);
+            float maxX = std::max(out.x + out.width,  r.x + r.width);
+            float maxY = std::max(out.y + out.height, r.y + r.height);
+
+            out.x = minX;
+            out.y = minY;
+            out.width  = maxX - minX;
+            out.height = maxY - minY;
+        }
+    }
+
+    return out;
+}
+
 
 // ------------------------------------------------------------
 void World::MergeSettlementsIfNeeded() {
@@ -77,21 +118,27 @@ void World::MergeSettlementsIfNeeded() {
 
             if (!overlap) continue;
 
-            // ---- MERGE j -> i ----
-            for (const auto& r : settlements[j].zones) {
+            // ---------- ОБЪЕДИНЕНИЕ j -> i ----------
+
+            // 1. зоны
+            for (const auto& r : settlements[j].zones)
                 settlements[i].zones.push_back(r);
-            }
 
-            settlements[i].centerPx = ComputeSettlementCenterPx(settlements[i]);
-
+            // 2. NPC перепривязываем
             for (auto& npc : npcs) {
                 if (npc.settlementId == j)
                     npc.settlementId = i;
             }
 
+            // 3. помечаем второе поселение мёртвым
             settlements[j].alive = false;
+
+            // 4. пересчитываем общую границу
+            settlements[i].boundsPx = ComputeSettlementBoundsPx(settlements[i]);
+            settlements[i].centerPx = ComputeSettlementCenterPx(settlements[i]);
         }
     }
+
 }
 
 static Vector2 RandomEdgeSpawn(int w, int h) {
@@ -136,28 +183,29 @@ void World::SpawnCivilian(Vector2 pos) {
         }
 
         // если есть 2 рядом — создаём новое поселение (3-й будет текущий npc)
-        if ((int)nearbyFreeCivs.size() >= 2) {
-            Settlement s;
-            s.alive = true;
-            s.color = Color{
-                    (unsigned char)GetRandomValue(80,255),
-                    (unsigned char)GetRandomValue(80,255),
-                    (unsigned char)GetRandomValue(80,255),
-                    255
-            };
+        Settlement s;
+        s.alive = true;
 
-            int cx = (int)(pos.x / CELL_SIZE);
-            int cy = (int)(pos.y / CELL_SIZE);
-            s.zones.push_back({ (float)(cx-4), (float)(cy-4), 8, 8 });
-            s.centerPx = ComputeSettlementCenterPx(s);
+// ОБЯЗАТЕЛЬНО сначала зона
+        int cx = (int)(pos.x / CELL_SIZE);
+        int cy = (int)(pos.y / CELL_SIZE);
+        s.zones.push_back({ (float)(cx - 4), (float)(cy - 4), 8, 8 });
 
-            settlements.push_back(s);
-            sid = (int)settlements.size() - 1;
+// цвет
+        s.color = Color{
+                (unsigned char)GetRandomValue(80,255),
+                (unsigned char)GetRandomValue(80,255),
+                (unsigned char)GetRandomValue(80,255),
+                255
+        };
 
-            // присваиваем этим двум + новому
-            npcs[nearbyFreeCivs[0]].settlementId = sid;
-            npcs[nearbyFreeCivs[1]].settlementId = sid;
-        }
+// ТОЛЬКО ТЕПЕРЬ push_back
+        settlements.push_back(s);
+        int sid = (int)settlements.size() - 1;
+
+// И ТОЛЬКО ПОТОМ считаем
+        settlements[sid].centerPx = ComputeSettlementCenterPx(settlements[sid]);
+        settlements[sid].boundsPx = ComputeSettlementBoundsPx(settlements[sid]);
     }
 
     npc.settlementId = sid;  // может остаться -1, если это 1-й/2-й житель
@@ -213,54 +261,12 @@ void World::Init() {
 
     settlements.clear();
     npcs.clear();
-    bombs.clear();
-    explosionEffects.clear(); // <-- добавлено
 
     banditSpawnTimer = 0.0f;
     nextBanditGroupId = 1;
 }
 
-// ------------------------------------------------------------
-// Bomb implementation
-// ------------------------------------------------------------
 
-void Bomb::Update(World& world, float dt) {
-    if (exploded) return;
-    timer -= dt;
-    if (timer <= 0.0f) {
-        Explode(world);
-    }
-}
-
-void Bomb::Explode(World& world) {
-    if (exploded) return;
-    exploded = true;
-
-    for (auto& npc : world.npcs) {
-        if (!npc.alive) continue;
-        float dx = npc.pos.x - x;
-        float dy = npc.pos.y - y;
-        float dist_sq = dx * dx + dy * dy;
-        if (dist_sq <= radius * radius) {
-            npc.hp -= 50.0f;
-            if (npc.hp <= 0) npc.alive = false;
-
-            float dist = std::sqrt(dist_sq);
-            if (dist > 0.0f) {
-                float force = 300.0f;
-                npc.vel.x += (dx / dist) * force;
-                npc.vel.y += (dy / dist) * force;
-            }
-        }
-    }
-
-    // Добавляем визуальный эффект взрыва
-    world.explosionEffects.push_back({x, y});
-}
-
-void World::AddBomb(float x, float y) {
-    bombs.emplace_back(x, y, 2.0f, 60.0f);
-}
 
 // ------------------------------------------------------------
 // Update
@@ -270,13 +276,14 @@ void World::Update(float dt) {
     // -------- bandit group spawning (DEBUG: often) --------
     banditSpawnTimer -= dt;
 
+
     if (banditSpawnTimer <= 0.0f) {
         banditSpawnTimer = 45.0f; // frequent for debug
 
         int count = GetRandomValue(5, 8);
         Vector2 spawnPos = RandomOutsideSpawn(worldW, worldH);
 
-        // направление ВСЕГДА внутрь карты
+// направление ВСЕГДА внутрь карты
         Vector2 toWorldCenter = {
                 worldW * 0.5f - spawnPos.x,
                 worldH * 0.5f - spawnPos.y
@@ -310,26 +317,6 @@ void World::Update(float dt) {
             HumanBehavior::Update(*this, npc, dt);
         }
     }
-
-    // -------- update bombs --------
-    for (auto& bomb : bombs) {
-        bomb.Update(*this, dt);
-    }
-    bombs.erase(
-        std::remove_if(bombs.begin(), bombs.end(),
-            [](const Bomb& b) { return b.exploded; }),
-        bombs.end()
-    );
-
-    // -------- update explosion effects --------
-    for (auto& fx : explosionEffects) {
-        fx.Update(dt);
-    }
-    explosionEffects.erase(
-        std::remove_if(explosionEffects.begin(), explosionEffects.end(),
-            [](const ExplosionEffect& e) { return !e.IsAlive(); }),
-        explosionEffects.end()
-    );
 
     // -------- cleanup bandits outside map --------
     npcs.erase(
@@ -397,13 +384,15 @@ void World::Draw() const {
                     DrawRectangle(cx * CELL_SIZE, cy * CELL_SIZE, CELL_SIZE, CELL_SIZE, fill);
                 }
             }
-            DrawRectangleLines(
-                (int)r.x * CELL_SIZE,
-                (int)r.y * CELL_SIZE,
-                (int)r.width * CELL_SIZE,
-                (int)r.height * CELL_SIZE,
-                s.color
-            );
+            Color fill = Fade(s.color, 0.25f);
+            for (const auto& r : s.zones) {
+                for (int cy = (int)r.y; cy < (int)r.y + (int)r.height; cy++) {
+                    for (int cx = (int)r.x; cx < (int)r.x + (int)r.width; cx++) {
+                        DrawRectangle(cx * CELL_SIZE, cy * CELL_SIZE,
+                                      CELL_SIZE, CELL_SIZE, fill);
+                    }
+                }
+            }
         }
         DrawCircleV(s.centerPx, 3, s.color);
     }
@@ -427,26 +416,5 @@ void World::Draw() const {
             default:
                 break;
         }
-    }
-
-    // Bombs
-    for (const auto& bomb : bombs) {
-        if (!bomb.exploded) {
-            DrawCircle((int)bomb.x, (int)bomb.y, 8, BLACK);
-            DrawCircleLines((int)bomb.x, (int)bomb.y, 8, RED);
-        }
-    }
-
-    // Explosion effects
-    for (const auto& fx : explosionEffects) {
-        float t = fx.life / fx.maxLife; // от 0.0 до 1.0
-        float radius = fx.maxRadius * t;
-        Color color = Color{
-            (unsigned char)(255 * (1.0f - t)),
-            (unsigned char)(200 * (1.0f - t * 0.7f)),
-            0,
-            (unsigned char)(200 * (1.0f - t))
-        };
-        DrawCircle((int)fx.x, (int)fx.y, (int)radius, color);
     }
 }

@@ -2,6 +2,34 @@
 #include "world.h"
 
 void CivilianBehavior::Update(World& world, NPC& npc, float dt) {
+    // --- если не привязан к поселению ---
+    if (npc.settlementId == -1) {
+        // хаотичное блуждание
+        npc.wanderTimer -= dt;
+        if (npc.wanderTimer <= 0.0f) {
+            npc.wanderTimer = RandomFloat(1.5f, 4.0f);
+            npc.wanderDir = SafeNormalize(RandomUnit2D());
+        }
+
+        npc.vel = {
+                npc.wanderDir.x * npc.speed,
+                npc.wanderDir.y * npc.speed
+        };
+
+        npc.pos.x += npc.vel.x * dt;
+        npc.pos.y += npc.vel.y * dt;
+
+        // проверка: вошёл ли в поселение
+        for (int i = 0; i < (int)world.settlements.size(); i++) {
+            if (!world.settlements[i].alive) continue;
+            if (PointInSettlementPx(world.settlements[i], npc.pos)) {
+                npc.settlementId = i;
+                break;
+            }
+        }
+
+        return; // важно
+    }
     if (npc.settlementId < 0 || npc.settlementId >= (int)world.settlements.size() ||
         !world.settlements[npc.settlementId].alive) {
         // Пока нет поселения — просто свободное перемещение по миру

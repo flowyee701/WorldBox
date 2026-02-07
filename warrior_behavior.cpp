@@ -3,6 +3,32 @@
 #include "civilian_behavior.h"
 
 void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
+    if (npc.settlementId == -1) {
+        npc.wanderTimer -= dt;
+        if (npc.wanderTimer <= 0.0f) {
+            npc.wanderTimer = RandomFloat(1.5f, 4.0f);
+            npc.wanderDir = SafeNormalize(RandomUnit2D());
+        }
+
+        npc.vel = {
+                npc.wanderDir.x * npc.speed,
+                npc.wanderDir.y * npc.speed
+        };
+
+        npc.pos.x += npc.vel.x * dt;
+        npc.pos.y += npc.vel.y * dt;
+
+        // попытка привязки к поселению
+        for (int i = 0; i < (int)world.settlements.size(); i++) {
+            if (!world.settlements[i].alive) continue;
+            if (PointInSettlementPx(world.settlements[i], npc.pos)) {
+                npc.settlementId = i;
+                break;
+            }
+        }
+
+        return;
+    }
     if (npc.settlementId < 0 || npc.settlementId >= (int)world.settlements.size() ||
         !world.settlements[npc.settlementId].alive) {
         // Пока нет поселения — просто свободное перемещение по миру
@@ -37,6 +63,61 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     const float MAX_CHASE_RADIUS = 260.0f;  // не уходить далеко от поселения
     NPC* alertBandit = nullptr;
     float bestToCenter2 = 1e9f;
+    NPC* spottedBandit = nullptr;
+
+    for (auto& other : world.npcs) {
+        if (!other.alive) continue;
+        if (other.humanRole != NPC::HumanRole::BANDIT) continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+        if (dx*dx + dy*dy < ALERT_RADIUS * ALERT_RADIUS) {
+            spottedBandit = &other;
+            break;
+        }
+    }
+    if (spottedBandit) {
+        for (auto& w : world.npcs) {
+            if (!w.alive) continue;
+            if (w.humanRole != NPC::HumanRole::WARRIOR) continue;
+            if (w.settlementId != npc.settlementId) continue;
+
+            w.combatTargetPos = spottedBandit->pos;
+            w.inCombat = true;
+
+            // назначаем оффсет формации (если ещё не был)
+            if (!w.formationAssigned) {
+                float angle = RandomFloat(0.0f, 2.0f * PI);
+                float radius = RandomFloat(20.0f, 60.0f);
+                w.formationOffset = {
+                        cosf(angle) * radius,
+                        sinf(angle) * radius
+                };
+                w.formationAssigned = true;
+            }
+        }
+    }
+    if (npc.inCombat) {
+        Vector2 target = {
+                npc.combatTargetPos.x + npc.formationOffset.x,
+                npc.combatTargetPos.y + npc.formationOffset.y
+        };
+
+        Vector2 toTarget = {
+                target.x - npc.pos.x,
+                target.y - npc.pos.y
+        };
+
+        Vector2 dir = SafeNormalize(toTarget);
+        npc.vel = {
+                dir.x * npc.speed,
+                dir.y * npc.speed
+        };
+
+        npc.pos.x += npc.vel.x * dt;
+        npc.pos.y += npc.vel.y * dt;
+        return;
+    }
 
 // 1) ищем бандита, который ближе всего к центру поселения
     for (auto& other : world.npcs) {
@@ -51,6 +132,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             alertBandit = &other;
         }
     }
+
 
     bool squadAlert = (alertBandit && bestToCenter2 < ALERT_RADIUS * ALERT_RADIUS);
 

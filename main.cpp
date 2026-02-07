@@ -30,7 +30,6 @@ int main() {
         if (IsKeyPressed(KEY_ONE)) mode = SpawnMode::CIVILIAN;
         if (IsKeyPressed(KEY_TWO)) mode = SpawnMode::WARRIOR;
 
-
         // ---- camera pan (RMB drag) ----
         Vector2 mouse = GetMousePosition();
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
@@ -51,20 +50,12 @@ int main() {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
             Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
 
+            // спавним только если внутри мира
             if (mouseWorld.x >= 0 && mouseWorld.x <= world.worldW &&
                 mouseWorld.y >= 0 && mouseWorld.y <= world.worldH) {
 
                 if (mode == SpawnMode::CIVILIAN) world.SpawnCivilian(mouseWorld);
                 if (mode == SpawnMode::WARRIOR)  world.SpawnWarrior(mouseWorld);
-            }
-        }
-
-        // ---- place bomb on RMB click (without dragging) ----
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-            Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
-            if (mouseWorld.x >= 0 && mouseWorld.x <= world.worldW &&
-                mouseWorld.y >= 0 && mouseWorld.y <= world.worldH) {
-                world.AddBomb(mouseWorld.x, mouseWorld.y);
             }
         }
 
