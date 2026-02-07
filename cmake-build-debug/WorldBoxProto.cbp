@@ -8,18 +8,18 @@
 		<Option virtualFolders="CMake Files\;CMake Files\..\;CMake Files\..\..\;CMake Files\..\..\..\;CMake Files\..\..\..\..\;CMake Files\..\..\..\..\opt\;CMake Files\..\..\..\..\opt\homebrew\;CMake Files\..\..\..\..\opt\homebrew\lib\;CMake Files\..\..\..\..\opt\homebrew\lib\cmake\;CMake Files\..\..\..\..\opt\homebrew\lib\cmake\raylib\;"/>
 		<Build>
 			<Target title="all">
-				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug"/>
+				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug"/>
 				<Option type="4"/>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 all"/>
-					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
 			<Target title="WorldBoxProto">
-				<Option output="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/WorldBoxProto" prefix_auto="0" extension_auto="0"/>
-				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug"/>
+				<Option output="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/WorldBoxProto" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug"/>
 				<Option object_output="./"/>
 				<Option type="1"/>
 				<Option compiler="gcc"/>
@@ -33,15 +33,15 @@
 					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"/>
 				</Compiler>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 WorldBoxProto"/>
-					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 WorldBoxProto"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
 			<Target title="WorldBoxProto/fast">
-				<Option output="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/WorldBoxProto" prefix_auto="0" extension_auto="0"/>
-				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug"/>
+				<Option output="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/WorldBoxProto" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug"/>
 				<Option object_output="./"/>
 				<Option type="1"/>
 				<Option compiler="gcc"/>
@@ -55,79 +55,79 @@
 					<Add directory="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"/>
 				</Compiler>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 WorldBoxProto/fast"/>
-					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 WorldBoxProto/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
 			<Target title="edit_cache">
-				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug"/>
+				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug"/>
 				<Option type="4"/>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
-					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
 			<Target title="rebuild_cache">
-				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug"/>
+				<Option working_dir="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug"/>
 				<Option type="4"/>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
-					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
-					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
-					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxProto/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<Build command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
 		</Build>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/bandit_behavior.cpp">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/bandit_behavior.cpp">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/bandit_behavior.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/bandit_behavior.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/civilian_behavior.cpp">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/civilian_behavior.cpp">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/civilian_behavior.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/civilian_behavior.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/human_behavior.cpp">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/human_behavior.cpp">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/human_behavior.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/human_behavior.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/main.cpp">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/main.cpp">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/npc.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/npc.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/settlement.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/settlement.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/warrior_behavior.cpp">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/warrior_behavior.cpp">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/warrior_behavior.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/warrior_behavior.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.cpp">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/world.cpp">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/world.h">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/world.h">
 			<Option target="WorldBoxProto"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/CMakeLists.txt">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/CMakeLists.txt">
 			<Option virtualFolder="CMake Files\"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/../../../../opt/homebrew/lib/cmake/raylib/raylib-config-version.cmake">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/../../../../opt/homebrew/lib/cmake/raylib/raylib-config-version.cmake">
 			<Option virtualFolder="CMake Files\..\..\..\..\opt\homebrew\lib\cmake\raylib\"/>
 		</Unit>
-		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxProto/../../../../opt/homebrew/lib/cmake/raylib/raylib-config.cmake">
+		<Unit filename="/Users/maksimbelavskij/CLionProjects/WorldBoxMain/../../../../opt/homebrew/lib/cmake/raylib/raylib-config.cmake">
 			<Option virtualFolder="CMake Files\..\..\..\..\opt\homebrew\lib\cmake\raylib\"/>
 		</Unit>
 	</Project>

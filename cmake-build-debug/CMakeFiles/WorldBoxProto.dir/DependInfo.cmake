@@ -8,12 +8,12 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/Users/nigo57/Downloads/WorldBox-main/bandit_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/bandit_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/bandit_behavior.cpp.o.d"
-  "/Users/nigo57/Downloads/WorldBox-main/civilian_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o.d"
-  "/Users/nigo57/Downloads/WorldBox-main/human_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o.d"
-  "/Users/nigo57/Downloads/WorldBox-main/main.cpp" "CMakeFiles/WorldBoxProto.dir/main.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/main.cpp.o.d"
-  "/Users/nigo57/Downloads/WorldBox-main/warrior_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/warrior_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/warrior_behavior.cpp.o.d"
-  "/Users/nigo57/Downloads/WorldBox-main/world.cpp" "CMakeFiles/WorldBoxProto.dir/world.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/world.cpp.o.d"
+  "/Users/maksimbelavskij/CLionProjects/WorldBoxMain/bandit_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/bandit_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/bandit_behavior.cpp.o.d"
+  "/Users/maksimbelavskij/CLionProjects/WorldBoxMain/civilian_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/civilian_behavior.cpp.o.d"
+  "/Users/maksimbelavskij/CLionProjects/WorldBoxMain/human_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/human_behavior.cpp.o.d"
+  "/Users/maksimbelavskij/CLionProjects/WorldBoxMain/main.cpp" "CMakeFiles/WorldBoxProto.dir/main.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/main.cpp.o.d"
+  "/Users/maksimbelavskij/CLionProjects/WorldBoxMain/warrior_behavior.cpp" "CMakeFiles/WorldBoxProto.dir/warrior_behavior.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/warrior_behavior.cpp.o.d"
+  "/Users/maksimbelavskij/CLionProjects/WorldBoxMain/world.cpp" "CMakeFiles/WorldBoxProto.dir/world.cpp.o" "gcc" "CMakeFiles/WorldBoxProto.dir/world.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

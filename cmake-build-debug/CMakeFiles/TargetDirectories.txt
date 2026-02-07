@@ -1,3 +1,3 @@
-/Users/nigo57/Downloads/WorldBox-main/cmake-build-debug/CMakeFiles/WorldBoxProto.dir
-/Users/nigo57/Downloads/WorldBox-main/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/nigo57/Downloads/WorldBox-main/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/CMakeFiles/WorldBoxProto.dir
+/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/maksimbelavskij/CLionProjects/WorldBoxMain/cmake-build-debug/CMakeFiles/rebuild_cache.dir
