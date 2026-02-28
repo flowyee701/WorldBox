@@ -1,6 +1,6 @@
-#include "bandit_behavior.h"
-#include "world.h"
-#include "civilian_behavior.h"
+#include "../include/bandit_behavior.h"
+#include "../include/world.h"
+#include "../include/civilian_behavior.h"
 
 
 void BanditBehavior::Update(World& world, NPC& npc, float dt) {

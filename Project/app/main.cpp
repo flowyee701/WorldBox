@@ -1,6 +1,6 @@
 #include "raylib.h"
 #include "raymath.h"
-#include "world.h"
+#include "../include/world.h"
 
 enum class SpawnMode { NONE, CIVILIAN, WARRIOR };
 
