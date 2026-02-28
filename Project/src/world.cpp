@@ -1,8 +1,8 @@
-#include "../include/world.h"
-#include "../include/human_behavior.h"
-#include "../include/bandit_behavior.h"
-#include "../include/settlement.h"
-#include "../include/npc.h"
+#include "environment/world.h"
+#include "npc/human_behavior.h"
+#include "npc/bandit_behavior.h"
+#include "environment/settlement.h"
+#include "npc/npc.h"
 #include <algorithm>
 
 // ------------------------------------------------------------

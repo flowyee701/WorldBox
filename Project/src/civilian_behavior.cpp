@@ -1,5 +1,5 @@
-#include "../include/civilian_behavior.h"
-#include "../include/world.h"
+#include "npc/civilian_behavior.h"
+#include "environment/world.h"
 #include <cmath>
 
 static float Length(Vector2 v) {

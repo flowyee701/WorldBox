@@ -1,5 +1,5 @@
 #pragma once
-#include "npc.h"
+#include "npc/npc.h"
 
 struct World; // forward declaration
 

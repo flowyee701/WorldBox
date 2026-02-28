@@ -1,6 +1,6 @@
-#include "../include/warrior_behavior.h"
-#include "../include/world.h"
-#include "../include/civilian_behavior.h"
+#include "npc/warrior_behavior.h"
+#include "environment/world.h"
+#include "npc/civilian_behavior.h"
 
 void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     // ---------- привязка к поселению ----------
