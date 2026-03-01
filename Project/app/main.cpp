@@ -75,7 +75,7 @@ int main() {
 
         EndDrawing();
     }
-
+    world.Shutdown();
     CloseWindow();
     return 0;
 }

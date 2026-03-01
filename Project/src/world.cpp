@@ -4,7 +4,9 @@
 #include "environment/settlement.h"
 #include "npc/npc.h"
 #include <algorithm>
-
+#include <cfloat>
+#include <iostream>
+#include <string>
 // ------------------------------------------------------------
 // Helpers
 static Vector2 RandomOutsideSpawn(int w, int h) {
@@ -22,6 +24,12 @@ static Vector2 RandomOutsideSpawn(int w, int h) {
             return {(float) GetRandomValue(0, w), (float) h + margin};// bottom
     }
 }
+static std::string PathJoin(const char* a, const char* b) {
+    std::string s = a;
+    if (!s.empty() && s.back() != '/') s += "/";
+    s += b;
+    return s;
+}
 
 static bool RectsOverlap(const Rectangle &a, const Rectangle &b) {
     return (a.x < b.x + b.width) && (a.x + a.width > b.x) &&
@@ -36,6 +44,81 @@ static Rectangle ZoneToPxRect(const Rectangle &z) {
             z.height * CELL_SIZE
     };
 }
+
+
+// Ищем файл в нескольких местах относительно Working Directory
+static std::string FindAssetPath(const char* relativePath)
+{
+    const char* wd = GetWorkingDirectory();
+
+    // чаще всего у тебя WD = .../cmake-build-debug/Project/app
+    // а assets лежит в .../Project/assets
+    // значит рабочий путь: "../assets/...."
+    const char* candidates[] = {
+            "",         // wd/relativePath
+            "../",      // wd/../relativePath
+            "../../",   // wd/../../relativePath
+            "../../../" // на всякий случай
+    };
+
+    for (const char* base : candidates) {
+        std::string full = PathJoin(wd, (std::string(base) + relativePath).c_str());
+        if (FileExists(full.c_str())) return full;
+    }
+
+    return "";
+}
+
+void World::LoadNpcSprites()
+{
+    if (npcSpritesLoaded) return;
+
+    auto loadOne = [&](Texture2D& outTex, bool& outLoaded, const char* relPath) {
+        std::string p = FindAssetPath(relPath);
+        if (p.empty()) {
+            TraceLog(LOG_ERROR, "NPC SPRITE missing: %s (WD=%s)", relPath, GetWorkingDirectory());
+            outLoaded = false;
+            return;
+        }
+
+        outTex = LoadTexture(p.c_str());
+        if (outTex.id == 0) {
+            TraceLog(LOG_ERROR, "Failed to LoadTexture: %s", p.c_str());
+            outLoaded = false;
+            return;
+        }
+
+        SetTextureFilter(outTex, TEXTURE_FILTER_POINT);
+        SetTextureWrap(outTex, TEXTURE_WRAP_CLAMP);
+        outLoaded = true;
+
+        TraceLog(LOG_INFO, "Loaded sprite: %s (%dx%d)", p.c_str(), outTex.width, outTex.height);
+    };
+
+    for (int i = 0; i < NPC_VARIANTS; i++) {
+        loadOne(npcTexCivilian[i], npcTexCivilianLoaded[i],
+                (std::string("assets/npc/civilian/civilian_") + std::to_string(i) + ".png").c_str());
+
+        loadOne(npcTexWarrior[i], npcTexWarriorLoaded[i],
+                (std::string("assets/npc/warrior/warrior_") + std::to_string(i) + ".png").c_str());
+
+        loadOne(npcTexBandit[i], npcTexBanditLoaded[i],
+                (std::string("assets/npc/bandit/bandit_") + std::to_string(i) + ".png").c_str());
+    }
+
+    npcSpritesLoaded = true;
+}
+
+void World::UnloadNpcSprites()
+{
+    for (int i = 0; i < NPC_VARIANTS; i++) {
+        if (npcTexCivilianLoaded[i]) { UnloadTexture(npcTexCivilian[i]); npcTexCivilianLoaded[i] = false; }
+        if (npcTexWarriorLoaded[i])  { UnloadTexture(npcTexWarrior[i]);  npcTexWarriorLoaded[i]  = false; }
+        if (npcTexBanditLoaded[i])   { UnloadTexture(npcTexBandit[i]);   npcTexBanditLoaded[i]   = false; }
+    }
+    npcSpritesLoaded = false;
+}
+
 bool World::PointInSettlementPx(const Settlement& s, Vector2 pos) const {
     int cx = (int)(pos.x / CELL_SIZE);
     int cy = (int)(pos.y / CELL_SIZE);
@@ -145,6 +228,7 @@ void World::SpawnCivilian(Vector2 pos) {
     NPC npc;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::CIVILIAN;
+    npc.skinId = (uint16_t)GetRandomValue(0, 2); // 0..2
     npc.pos = pos;
     npc.vel = {0, 0};
     npc.speed = 15.0f;
@@ -226,6 +310,7 @@ void World::SpawnWarrior(Vector2 pos) {
     NPC npc;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::WARRIOR;
+    npc.skinId = (uint16_t)GetRandomValue(0, 2);
     npc.pos = pos;
     npc.vel = {0,0};
     npc.hp = 200.0f;
@@ -256,7 +341,8 @@ static void DrawBanditTriangle(Vector2 pos, float size, Color color) {
 // Init
 // ------------------------------------------------------------
 
-void World::Init() {
+void World::Init()
+{
     cols = worldW / CELL_SIZE;
     rows = worldH / CELL_SIZE;
 
@@ -265,6 +351,12 @@ void World::Init() {
 
     banditSpawnTimer = 0.0f;
     nextBanditGroupId = 1;
+
+    LoadNpcSprites(); // <-- ВАЖНО
+}
+void World::Shutdown()
+{
+    UnloadNpcSprites();
 }
 
 
@@ -296,6 +388,7 @@ void World::Update(float dt) {
             NPC npc;
             npc.type = NPC::Type::HUMAN;
             npc.humanRole = NPC::HumanRole::BANDIT;
+            npc.skinId = (uint16_t)GetRandomValue(0, 2);
             npc.settlementId = -1;
 
             npc.banditGroupId = gid;
@@ -316,6 +409,24 @@ void World::Update(float dt) {
     for (auto &npc: npcs) {
         if (npc.type == NPC::Type::HUMAN) {
             HumanBehavior::Update(*this, npc, dt);
+        }
+    }
+    // --- автопривязка диких NPC к первому поселению, в которое они вошли ---
+    for (auto& npc : npcs) {
+        if (!npc.alive) continue;
+        if (npc.settlementId != -1) continue;
+
+        if (npc.humanRole != NPC::HumanRole::CIVILIAN &&
+            npc.humanRole != NPC::HumanRole::WARRIOR) {
+            continue;
+        }
+
+        for (int i = 0; i < (int)settlements.size(); i++) {
+            if (!settlements[i].alive) continue;
+            if (PointInSettlementPx(settlements[i], npc.pos)) {
+                npc.settlementId = i;
+                break;
+            }
         }
     }
 
@@ -351,6 +462,7 @@ void World::Update(float dt) {
             s.alive = false;
         }
     }
+
     MergeSettlementsIfNeeded();
 }
 
@@ -395,24 +507,76 @@ void World::Draw() const {
         }
     }
 
-    // NPCs
-    for (const auto &npc: npcs) {
-        float size = CELL_SIZE * 0.4f;
 
-        Color c = GetSafeSettlementColor(*this, npc.settlementId);
+    // NPCs
+    const float drawW = (float)CELL_SIZE * 2.0f; // ты просил x2
+    const float drawH = (float)CELL_SIZE * 2.0f;
+    const float SCALE = 2.0f;
+    const float BASE = 32.0f;
+    for (const auto& npc : npcs) {
+        if (!npc.alive) continue;
+
+        int v = (int)(npc.skinId % NPC_VARIANTS);
+
+        const Texture2D* tex = nullptr;
+        bool loaded = false;
 
         switch (npc.humanRole) {
             case NPC::HumanRole::CIVILIAN:
-                DrawCircleV(npc.pos, size, c);
+                tex = &npcTexCivilian[v];
+                loaded = npcTexCivilianLoaded[v];
                 break;
             case NPC::HumanRole::WARRIOR:
-                DrawRectangle(npc.pos.x - size, npc.pos.y - size, size * 2, size * 2, c);
+                tex = &npcTexWarrior[v];
+                loaded = npcTexWarriorLoaded[v];
                 break;
             case NPC::HumanRole::BANDIT:
-                DrawBanditTriangle(npc.pos, CELL_SIZE * 0.7f, Color{160, 80, 200, 255});
+                tex = &npcTexBandit[v];
+                loaded = npcTexBanditLoaded[v];
                 break;
             default:
                 break;
         }
+
+        // Если спрайта нет — рисуем примитивы, чтобы было видно, что NPC живой
+        if (!tex || !loaded || tex->id == 0) {
+            float size = CELL_SIZE * 0.4f;
+            Color c = GetSafeSettlementColor(*this, npc.settlementId);
+
+            switch (npc.humanRole) {
+                case NPC::HumanRole::CIVILIAN: DrawCircleV(npc.pos, size, c); break;
+                case NPC::HumanRole::WARRIOR:  DrawRectangle(npc.pos.x-size, npc.pos.y-size, size*2, size*2, c); break;
+                case NPC::HumanRole::BANDIT:   DrawTriangle(
+                            {npc.pos.x, npc.pos.y + CELL_SIZE*0.7f},
+                            {npc.pos.x + CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
+                            {npc.pos.x - CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
+                            Color{160,80,200,255}); break;
+                default: break;
+            }
+            continue;
+        }
+        Rectangle source{ 0, 0, (float)tex->width, (float)tex->height };
+        Rectangle dest{
+                floorf(npc.pos.x - drawW * 0.5f),
+                floorf(npc.pos.y - drawH),
+                drawW, drawH
+        };
+        float scale = 1.0f;
+
+        switch (npc.humanRole) {
+            case NPC::HumanRole::CIVILIAN:
+                scale = 2.5f;   // жители больше
+                break;
+
+            case NPC::HumanRole::WARRIOR:
+                scale = 2.0f;   // как было
+                break;
+
+            case NPC::HumanRole::BANDIT:
+                scale = 2.0f;
+                break;
+        }
+
+        DrawTexturePro(*tex, source, dest, Vector2{0,0}, 0.0f, WHITE);
     }
 }

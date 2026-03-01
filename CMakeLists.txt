@@ -7,3 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(raylib CONFIG REQUIRED)
 
 add_subdirectory(Project)
+
+# Копируем папку 'assets' в директорию, где лежит скомпилированный бинарник
+file(COPY "${CMAKE_SOURCE_DIR}/Project/assets"
+        DESTINATION "${CMAKE_BINARY_DIR}")
