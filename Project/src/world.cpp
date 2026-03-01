@@ -470,52 +470,10 @@ void World::Update(float dt) {
 // Draw
 // ------------------------------------------------------------
 Color GetSafeSettlementColor(const World &w, int sid) {
-    Color c = {220, 220, 220, 255};
-
-    if (sid >= 0 && sid < (int)w.settlements.size() && w.settlements[sid].alive) {
-        c = w.settlements[sid].color;
+    if (sid < 0 || sid >= (int) w.settlements.size() || !w.settlements[sid].alive) {
+        return Color{220, 220, 220, 255}; // серый для "без поселения"
     }
-
-    c.a = 255; // <- ЖЕЛЕЗНО непрозрачный всегда
-    return c;
-}
-
-static void DrawDiamondSolid(Vector2 center, int r, Color col)
-{
-    // col.a игнорируем не будем — но на всякий случай
-    col.a = 255;
-
-    int cx = (int)center.x;
-    int cy = (int)center.y;
-
-    // верхняя половина (включая середину)
-    for (int dy = -r; dy <= 0; dy++) {
-        int half = r + dy; // 0..r
-        DrawLine(cx - half, cy + dy, cx + half, cy + dy, col);
-    }
-
-    // нижняя половина
-    for (int dy = 1; dy <= r; dy++) {
-        int half = r - dy; // r-1..0
-        DrawLine(cx - half, cy + dy, cx + half, cy + dy, col);
-    }
-}
-
-static void DrawDiamondOutline(Vector2 center, int r, Color col)
-{
-    col.a = 255;
-    int cx = (int)center.x;
-    int cy = (int)center.y;
-
-    Vector2 top    = {(float)cx,     (float)(cy - r)};
-    Vector2 right  = {(float)(cx+r), (float)cy};
-    Vector2 bottom = {(float)cx,     (float)(cy + r)};
-    Vector2 left   = {(float)(cx-r), (float)cy};
-
-    DrawLineV(top, right, col);
-    DrawLineV(right, bottom, col);
-    DrawLineV(bottom, left, col);
-    DrawLineV(left, top, col);
+    return w.settlements[sid].color;
 }
 
 void World::Draw() const {
@@ -550,18 +508,18 @@ void World::Draw() const {
     }
 
 
-    // =====================
-// NPCs (fixed size by CELL_SIZE)
-// =====================
+    // NPCs
+    const float drawW = (float)CELL_SIZE * 2.0f; // ты просил x2
+    const float drawH = (float)CELL_SIZE * 2.0f;
+    const float SCALE = 2.0f;
+    const float BASE = 32.0f;
     for (const auto& npc : npcs) {
-
         if (!npc.alive) continue;
 
         int v = (int)(npc.skinId % NPC_VARIANTS);
 
         const Texture2D* tex = nullptr;
         bool loaded = false;
-
 
         switch (npc.humanRole) {
             case NPC::HumanRole::CIVILIAN:
@@ -580,7 +538,7 @@ void World::Draw() const {
                 break;
         }
 
-        // если спрайта нет — fallback
+        // Если спрайта нет — рисуем примитивы, чтобы было видно, что NPC живой
         if (!tex || !loaded || tex->id == 0) {
             float size = CELL_SIZE * 0.4f;
             Color c = GetSafeSettlementColor(*this, npc.settlementId);
@@ -597,42 +555,28 @@ void World::Draw() const {
             }
             continue;
         }
-
-        // --- ВСЕГДА рисуем в размере от клетки, а не от tex->width ---
-        float mult = 1.0f; // общий множитель
-        if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f; // жители чуть больше
-        if (npc.humanRole == NPC::HumanRole::BANDIT)  mult = 1.05f; // чуть крупнее (или 1.0f)
-
-        // базовый размер на карте: 2 клетки (как ты хотел раньше)
-        float w = (float)CELL_SIZE * 2.0f * mult;
-        float h = (float)CELL_SIZE * 2.0f * mult;
-
-        Rectangle src{ 0.0f, 0.0f, (float)tex->width, (float)tex->height };
-
-        // якорим "ноги" в npc.pos: низ спрайта = npc.pos.y
-        Rectangle dst{
-                floorf(npc.pos.x - w * 0.5f),
-                floorf(npc.pos.y - h),
-                w, h
+        Rectangle source{ 0, 0, (float)tex->width, (float)tex->height };
+        Rectangle dest{
+                floorf(npc.pos.x - drawW * 0.5f),
+                floorf(npc.pos.y - drawH),
+                drawW, drawH
         };
+        float scale = 1.0f;
 
-        // НЕ ТИНТУЕМ спрайт (иначе можно получить "пропал" из-за альфы/смешивания)
-        DrawTexturePro(*tex, src, dst, Vector2{0,0}, 0.0f, WHITE);
+        switch (npc.humanRole) {
+            case NPC::HumanRole::CIVILIAN:
+                scale = 2.5f;   // жители больше
+                break;
 
-        // --- обозначение поселения: плотный пиксельный ромбик над головой ---
-        if (npc.settlementId != -1) {
-            Color sc = GetSafeSettlementColor(*this, npc.settlementId); // уже a=255
-            sc.a = 255;
+            case NPC::HumanRole::WARRIOR:
+                scale = 2.0f;   // как было
+                break;
 
-            // позиция над головой: top спрайта = npc.pos.y - h
-            Vector2 c = {
-                    (float)((int)npc.pos.x),
-                    (float)((int)(npc.pos.y - h - 6.0f))  // чуть выше; подстрой 4..8
-            };
-
-            const int r = 3; // размер ромбика: 2-4 обычно норм
-            DrawDiamondSolid(c, r, sc);
-            DrawDiamondOutline(c, r, BLACK); // можно убрать, если не надо
+            case NPC::HumanRole::BANDIT:
+                scale = 2.0f;
+                break;
         }
+
+        DrawTexturePro(*tex, source, dest, Vector2{0,0}, 0.0f, WHITE);
     }
 }
