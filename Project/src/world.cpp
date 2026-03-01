@@ -24,6 +24,38 @@ static Vector2 RandomOutsideSpawn(int w, int h) {
             return {(float) GetRandomValue(0, w), (float) h + margin};// bottom
     }
 }
+static float ClampF(float v, float a, float b) { return (v < a) ? a : (v > b) ? b : v; }
+static Vector2 NearestTileCenterPx(const World& world, const Settlement& s, Vector2 from)
+{
+    if (s.tiles.empty()) return from;
+
+    float bestD2 = 1e30f;
+    Vector2 best = from;
+
+    for (int tile : s.tiles) {
+        int cx = tile % world.cols;
+        int cy = tile / world.cols;
+
+        Vector2 c{
+                (cx + 0.5f) * CELL_SIZE,
+                (cy + 0.5f) * CELL_SIZE
+        };
+
+        float dx = c.x - from.x;
+        float dy = c.y - from.y;
+        float d2 = dx*dx + dy*dy;
+
+        if (d2 < bestD2) { bestD2 = d2; best = c; }
+    }
+    return best;
+}
+static Vector2 ClosestPointInRectPx(Vector2 p, const Rectangle& rPx)
+{
+    return {
+            ClampF(p.x, rPx.x, rPx.x + rPx.width),
+            ClampF(p.y, rPx.y, rPx.y + rPx.height)
+    };
+}
 static std::string PathJoin(const char* a, const char* b) {
     std::string s = a;
     if (!s.empty() && s.back() != '/') s += "/";
@@ -71,6 +103,7 @@ static std::string FindAssetPath(const char* relativePath)
 
 void World::LoadNpcSprites()
 {
+
     if (npcSpritesLoaded) return;
 
     auto loadOne = [&](Texture2D& outTex, bool& outLoaded, const char* relPath) {
@@ -105,6 +138,7 @@ void World::LoadNpcSprites()
         loadOne(npcTexBandit[i], npcTexBanditLoaded[i],
                 (std::string("assets/npc/bandit/bandit_") + std::to_string(i) + ".png").c_str());
     }
+    loadOne(npcTexCaptain, npcTexCaptainLoaded, "assets/npc/captain/captain_0.png");
 
     npcSpritesLoaded = true;
 }
@@ -115,8 +149,62 @@ void World::UnloadNpcSprites()
         if (npcTexCivilianLoaded[i]) { UnloadTexture(npcTexCivilian[i]); npcTexCivilianLoaded[i] = false; }
         if (npcTexWarriorLoaded[i])  { UnloadTexture(npcTexWarrior[i]);  npcTexWarriorLoaded[i]  = false; }
         if (npcTexBanditLoaded[i])   { UnloadTexture(npcTexBandit[i]);   npcTexBanditLoaded[i]   = false; }
+        if (npcTexCaptainLoaded) { UnloadTexture(npcTexCaptain); npcTexCaptainLoaded = false; }
     }
     npcSpritesLoaded = false;
+}
+
+void World::LoadFireSprites()
+{
+    auto loadOne = [&](Texture2D& outTex, bool& outLoaded, const char* relPath) {
+        std::string p = FindAssetPath(relPath); // у тебя FindAssetPath уже есть
+        if (p.empty()) {
+            TraceLog(LOG_ERROR, "FIRE missing: %s (WD=%s)", relPath, GetWorkingDirectory());
+            outLoaded = false;
+            return;
+        }
+        outTex = LoadTexture(p.c_str());
+        if (outTex.id == 0) {
+            TraceLog(LOG_ERROR, "Failed to LoadTexture fire: %s", p.c_str());
+            outLoaded = false;
+            return;
+        }
+        SetTextureFilter(outTex, TEXTURE_FILTER_POINT);
+        SetTextureWrap(outTex, TEXTURE_WRAP_CLAMP);
+        outLoaded = true;
+        TraceLog(LOG_INFO, "Loaded fire: %s", p.c_str());
+    };
+
+    for (int i = 0; i < FIRE_FRAMES; i++) {
+        std::string rel = "assets/environment/fire/fire_" + std::to_string(i) + ".png";
+        loadOne(fireTex[i], fireLoaded[i], rel.c_str());
+    }
+}
+
+void World::UnloadFireSprites()
+{
+    for (int i = 0; i < FIRE_FRAMES; i++) {
+        if (fireLoaded[i]) {
+            UnloadTexture(fireTex[i]);
+            fireLoaded[i] = false;
+        }
+    }
+}
+
+void World::UpdateCampfires()
+{
+    for (auto& s : settlements) {
+        if (!s.alive) continue;
+
+        Vector2 c = s.centerPx;
+
+        // если вдруг центр не внутри — ставим в ближайший тайл
+        if (!PointInSettlementPx(s, c)) {
+            c = NearestTileCenterPx(*this, s, c);
+        }
+
+        s.campfirePosPx = c;
+    }
 }
 
 bool World::PointInSettlementPx(const Settlement& s, Vector2 pos) const {
@@ -328,6 +416,33 @@ void World::SpawnWarrior(Vector2 pos) {
 
     npcs.push_back(npc);
 }
+void World::SpawnCaptain(Vector2 pos) {
+    NPC npc;
+    npc.type = NPC::Type::HUMAN;
+    npc.humanRole = NPC::HumanRole::CAPTAIN; // <-- ВАЖНО
+    npc.isCaptain = true;
+
+    npc.skinId = 0; // если позже сделаешь варианты капитана
+    npc.pos = pos;
+    npc.vel = {0,0};
+
+    npc.hp = 350.0f;
+    npc.damage = 35.0f;
+    npc.speed = 35.0f;
+
+    npc.settlementId = -1;
+
+    // если клик внутри поселения — привязываем
+    for (int i = 0; i < (int)settlements.size(); i++) {
+        if (!settlements[i].alive) continue;
+        if (PointInSettlementPx(settlements[i], pos)) {
+            npc.settlementId = i;
+            break;
+        }
+    }
+
+    npcs.push_back(npc);
+}
 
 static void DrawBanditTriangle(Vector2 pos, float size, Color color) {
     Vector2 p1 = {pos.x, pos.y + size};
@@ -353,10 +468,14 @@ void World::Init()
     nextBanditGroupId = 1;
 
     LoadNpcSprites(); // <-- ВАЖНО
+
+    LoadFireSprites();
+    UpdateCampfires();
 }
 void World::Shutdown()
 {
     UnloadNpcSprites();
+    UnloadFireSprites();
 }
 
 
@@ -366,6 +485,7 @@ void World::Shutdown()
 // ------------------------------------------------------------
 
 void World::Update(float dt) {
+
     // -------- bandit group spawning (DEBUG: often) --------
     banditSpawnTimer -= dt;
 
@@ -411,6 +531,15 @@ void World::Update(float dt) {
             HumanBehavior::Update(*this, npc, dt);
         }
     }
+    // анимация костра
+    fireAnimT += dt;
+    if (fireAnimT >= fireAnimSpeed) {
+        fireAnimT = 0.0f;
+        fireFrame = (fireFrame + 1) % FIRE_FRAMES;
+    }
+
+// если поселения меняются/мерджатся — пересчитываем позиции костров
+    UpdateCampfires();
     // --- автопривязка диких NPC к первому поселению, в которое они вошли ---
     for (auto& npc : npcs) {
         if (!npc.alive) continue;
@@ -445,6 +574,8 @@ void World::Update(float dt) {
                            [](const NPC &n) { return !n.alive; }),
             npcs.end()
     );
+
+
     for (auto &s: settlements) {
         if (!s.alive) continue;
 
@@ -576,29 +707,13 @@ void World::Draw() const {
                 tex = &npcTexBandit[v];
                 loaded = npcTexBanditLoaded[v];
                 break;
+            case NPC::HumanRole::CAPTAIN:
+                tex = &npcTexCaptain;
+                loaded = npcTexCaptainLoaded;
+                break;
             default:
                 break;
         }
-
-        // если спрайта нет — fallback
-        if (!tex || !loaded || tex->id == 0) {
-            float size = CELL_SIZE * 0.4f;
-            Color c = GetSafeSettlementColor(*this, npc.settlementId);
-
-            switch (npc.humanRole) {
-                case NPC::HumanRole::CIVILIAN: DrawCircleV(npc.pos, size, c); break;
-                case NPC::HumanRole::WARRIOR:  DrawRectangle(npc.pos.x-size, npc.pos.y-size, size*2, size*2, c); break;
-                case NPC::HumanRole::BANDIT:   DrawTriangle(
-                            {npc.pos.x, npc.pos.y + CELL_SIZE*0.7f},
-                            {npc.pos.x + CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
-                            {npc.pos.x - CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
-                            Color{160,80,200,255}); break;
-                default: break;
-            }
-            continue;
-        }
-
-        // --- ВСЕГДА рисуем в размере от клетки, а не от tex->width ---
         float mult = 1.0f; // общий множитель
         if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f; // жители чуть больше
         if (npc.humanRole == NPC::HumanRole::BANDIT)  mult = 1.05f; // чуть крупнее (или 1.0f)
@@ -612,9 +727,32 @@ void World::Draw() const {
         // якорим "ноги" в npc.pos: низ спрайта = npc.pos.y
         Rectangle dst{
                 floorf(npc.pos.x - w * 0.5f),
-                floorf(npc.pos.y - h),
+                floorf(npc.pos.y - h * 0.5f),
                 w, h
         };
+
+        // если спрайта нет — fallback
+        if (!tex || !loaded || tex->id == 0) {
+            float size = CELL_SIZE * 0.4f;
+            Color c = GetSafeSettlementColor(*this, npc.settlementId);
+
+            switch (npc.humanRole) {
+                case NPC::HumanRole::CIVILIAN: DrawCircleV(npc.pos, size, c); break;
+                case NPC::HumanRole::WARRIOR:  {
+                    DrawRectangle(npc.pos.x-size, npc.pos.y-size, size*2, size*2, c); break;
+                }
+                case NPC::HumanRole::BANDIT:   DrawTriangle(
+                            {npc.pos.x, npc.pos.y + CELL_SIZE*0.7f},
+                            {npc.pos.x + CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
+                            {npc.pos.x - CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
+                            Color{160,80,200,255}); break;
+                default: break;
+            }
+            continue;
+        }
+
+        // --- ВСЕГДА рисуем в размере от клетки, а не от tex->width ---
+
 
         // НЕ ТИНТУЕМ спрайт (иначе можно получить "пропал" из-за альфы/смешивания)
         DrawTexturePro(*tex, src, dst, Vector2{0,0}, 0.0f, WHITE);
@@ -630,9 +768,31 @@ void World::Draw() const {
                     (float)((int)(npc.pos.y - h - 6.0f))  // чуть выше; подстрой 4..8
             };
 
-            const int r = 3; // размер ромбика: 2-4 обычно норм
+            const int r = 3; // размер ромбика
             DrawDiamondSolid(c, r, sc);
-            DrawDiamondOutline(c, r, BLACK); // можно убрать, если не надо
+            DrawDiamondOutline(c, r, BLACK);
         }
+    }
+    // ---- CAMPFIRES ----
+    int f = fireFrame;
+    if (f < 0 || f >= FIRE_FRAMES) f = 0;
+
+    for (const auto& s : settlements) {
+        if (!s.alive) continue;
+        if (!fireLoaded[f] || fireTex[f].id == 0) continue;
+
+        // рисуем крупнее, чем NPC
+        float w = (float)CELL_SIZE * 4.0f;
+        float h = (float)CELL_SIZE * 4.0f;
+
+        Rectangle src{0,0,(float)fireTex[f].width,(float)fireTex[f].height};
+        Rectangle dst{
+                floorf(s.campfirePosPx.x - w*0.5f),
+                floorf(s.campfirePosPx.y - h*0.5f),
+                w, h
+        };
+
+
+        DrawTexturePro(fireTex[f], src, dst, {0,0}, 0.0f, WHITE);
     }
 }

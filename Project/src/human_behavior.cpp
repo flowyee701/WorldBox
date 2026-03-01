@@ -11,12 +11,14 @@ void HumanBehavior::Update(World& world, NPC& npc, float dt) {
             break;
 
         case NPC::HumanRole::WARRIOR:
+        case NPC::HumanRole::CAPTAIN:
             WarriorBehavior::Update(world, npc, dt);
             break;
 
         case NPC::HumanRole::BANDIT:
             BanditBehavior::Update(world, npc, dt);
             break;
+
 
         default:
             break;
