@@ -16,6 +16,7 @@ struct Settlement {
     // геометрия (в пикселях)
     Vector2 centerPx{0,0};
     Rectangle boundsPx{0,0,0,0};
+    Vector2 campfirePosPx{};  // позиция костра (в пикселях)
 
     // legacy — больше НЕ используем
     // std::vector<Rectangle> zones;

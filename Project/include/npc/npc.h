@@ -16,13 +16,23 @@ struct NPC {
     // -------------------------------------------------
     enum class Type { HUMAN, ANIMAL } type = Type::HUMAN;
 
-    enum class HumanRole { NONE, CIVILIAN, WARRIOR, BANDIT }
+    enum class HumanRole { NONE, CIVILIAN, WARRIOR, BANDIT, CAPTAIN }
             humanRole = HumanRole::CIVILIAN;
+
+    enum class WarriorRank { WARRIOR, CAPTAIN };
+    WarriorRank warriorRank = WarriorRank::WARRIOR;
+    // --- warriors ---
+    bool isCaptain = false;
 
     int settlementId = -1;   // -1 = дикий / непривязанный
     bool alive = true;
 
     uint16_t skinId = 0;     // на будущее (скины)
+
+    // npc.h (внутри struct NPC)
+    bool hasFormationOffset = false;   // <-- чтобы warrior_behavior.cpp собрался
+    Vector2 formationOffset{0,0};      // обычно рядом с этим используется
+    bool formationAssigned = false; // на будущее (если код где-то использует это имя)
 
     // -------------------------------------------------
     // Stats
@@ -55,8 +65,6 @@ struct NPC {
 
     Vector2 combatTargetPos = {0.0f, 0.0f};
 
-    Vector2 formationOffset = {0.0f, 0.0f};
-    bool formationAssigned = false;
 
     int squadId = -1;                 // для воинов (отряд)
 
