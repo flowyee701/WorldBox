@@ -26,6 +26,7 @@ public:
     Texture2D npcTexWarrior[NPC_VARIANTS]{};
     Texture2D npcTexBandit[NPC_VARIANTS]{};
 
+
     bool npcTexCivilianLoaded[NPC_VARIANTS]{};
     bool npcTexWarriorLoaded[NPC_VARIANTS]{};
     bool npcTexBanditLoaded[NPC_VARIANTS]{};
