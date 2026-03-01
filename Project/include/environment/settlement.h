@@ -28,10 +28,11 @@ inline Vector2 CellToPxCenter(int cx, int cy) {
 }
 
 inline bool PointInSettlementPx(const Settlement& s, Vector2 pPx) {
-    int cx = static_cast<int>(pPx.x / CELL_SIZE);
-    int cy = static_cast<int>(pPx.y / CELL_SIZE);
+    if (!s.alive) return false;
 
-    return false;
+    // Быстрая и стабильная проверка: точка в прямоугольнике границ поселения
+    // (boundsPx должен быть посчитан при создании/мердже поселения)
+    return CheckCollisionPointRec(pPx, s.boundsPx);
 }
 
 inline Vector2 SafeNormalize(Vector2 v) {

@@ -1,8 +1,8 @@
-#include "human_behavior.h"
-#include "world.h"
-#include "civilian_behavior.h"
-#include "warrior_behavior.h"
-#include "bandit_behavior.h"
+#include "npc/human_behavior.h"
+#include "environment/world.h"
+#include "npc/civilian_behavior.h"
+#include "npc/warrior_behavior.h"
+#include "npc/bandit_behavior.h"
 
 void HumanBehavior::Update(World& world, NPC& npc, float dt) {
     switch (npc.humanRole) {

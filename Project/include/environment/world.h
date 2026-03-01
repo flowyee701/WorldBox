@@ -4,7 +4,7 @@
 
 #include "raylib.h"
 #include "raymath.h"
-#include "npc.h"
+#include "npc/npc.h"
 #include "settlement.h"
 
 
@@ -20,9 +20,27 @@ public:
     std::vector<Settlement> settlements;
     std::vector<NPC> npcs;
 
+    static constexpr int NPC_VARIANTS = 3;
+
+    Texture2D npcTexCivilian[NPC_VARIANTS]{};
+    Texture2D npcTexWarrior[NPC_VARIANTS]{};
+    Texture2D npcTexBandit[NPC_VARIANTS]{};
+
+
+    bool npcTexCivilianLoaded[NPC_VARIANTS]{};
+    bool npcTexWarriorLoaded[NPC_VARIANTS]{};
+    bool npcTexBanditLoaded[NPC_VARIANTS]{};
+
+    bool npcSpritesLoaded = false;
+
+    void LoadNpcSprites();
+    void UnloadNpcSprites();
+
+
     // ✅ ВОТ ЭТО ВАЖНО
     float banditSpawnTimer = 0.0f;
     int nextBanditGroupId = 1;
+
 
     void Init();
     void Update(float dt);
@@ -35,10 +53,10 @@ public:
     void MergeSettlementsIfNeeded();
     void SpawnCivilian(Vector2 pos);
     void SpawnWarrior(Vector2 pos);
+
+    void Shutdown();
 };
 inline float RandomFloat(float min, float max) {
     return min + (float)GetRandomValue(0, 10000) / 10000.0f * (max - min);
 
-}
-
-
+};

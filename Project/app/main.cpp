@@ -1,6 +1,6 @@
 #include "raylib.h"
 #include "raymath.h"
-#include "world.h"
+#include "environment/world.h"
 
 enum class SpawnMode { NONE, CIVILIAN, WARRIOR };
 
@@ -75,7 +75,7 @@ int main() {
 
         EndDrawing();
     }
-
+    world.Shutdown();
     CloseWindow();
     return 0;
 }

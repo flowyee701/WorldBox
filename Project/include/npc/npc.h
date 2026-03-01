@@ -66,4 +66,9 @@ struct NPC {
     int banditGroupId = -1;
     Vector2 banditGroupDir = {0.0f, 0.0f};
     float banditLifeTime = 0.0f;
+
+    // --- roaming target (for civilians / warriors) ---
+    Vector2 roamTarget = {0.0f, 0.0f};
+    bool hasRoamTarget = false;
+    float restTimer = 0.0f;
 };

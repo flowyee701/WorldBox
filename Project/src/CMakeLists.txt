@@ -1,0 +1,19 @@
+add_library(worldbox_core
+        world.cpp
+        human_behavior.cpp
+        civilian_behavior.cpp
+        warrior_behavior.cpp
+        bandit_behavior.cpp
+)
+
+target_include_directories(worldbox_core
+        PUBLIC
+        ${CMAKE_SOURCE_DIR}/Project/include
+)
+
+find_package(raylib CONFIG REQUIRED)
+
+target_link_libraries(worldbox_core
+        PUBLIC
+        raylib
+)
