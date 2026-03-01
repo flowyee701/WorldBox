@@ -25,8 +25,10 @@ public:
     Texture2D npcTexCivilian[NPC_VARIANTS]{};
     Texture2D npcTexWarrior[NPC_VARIANTS]{};
     Texture2D npcTexBandit[NPC_VARIANTS]{};
+    Texture2D npcTexCaptain;
 
 
+    bool npcTexCaptainLoaded = false;
     bool npcTexCivilianLoaded[NPC_VARIANTS]{};
     bool npcTexWarriorLoaded[NPC_VARIANTS]{};
     bool npcTexBanditLoaded[NPC_VARIANTS]{};
@@ -40,6 +42,22 @@ public:
     // ✅ ВОТ ЭТО ВАЖНО
     float banditSpawnTimer = 0.0f;
     int nextBanditGroupId = 1;
+    void SpawnCaptain(Vector2 pos);
+    Texture2D captainTex{};
+    bool captainTexLoaded = false;
+    // ===== Campfire =====
+    static constexpr int FIRE_FRAMES = 4;
+
+    Texture2D fireTex[FIRE_FRAMES]{};
+    bool fireLoaded[FIRE_FRAMES]{false};
+
+    int fireFrame = 0;
+    float fireAnimT = 0.0f;
+    float fireAnimSpeed = 0.10f; // 0.10 = 10 кадров/сек (можно 0.12..0.18)
+
+    void LoadFireSprites();
+    void UnloadFireSprites();
+    void UpdateCampfires(); // пересчёт позиций костров по центру поселений
 
 
     void Init();
