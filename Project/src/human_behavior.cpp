@@ -3,6 +3,7 @@
 #include "npc/civilian_behavior.h"
 #include "npc/warrior_behavior.h"
 #include "npc/bandit_behavior.h"
+#include "npc/captain_behavior.h"
 
 void HumanBehavior::Update(World& world, NPC& npc, float dt) {
     switch (npc.humanRole) {
@@ -11,8 +12,11 @@ void HumanBehavior::Update(World& world, NPC& npc, float dt) {
             break;
 
         case NPC::HumanRole::WARRIOR:
-        case NPC::HumanRole::CAPTAIN:
             WarriorBehavior::Update(world, npc, dt);
+            break;
+
+        case NPC::HumanRole::CAPTAIN:
+            CaptainBehavior::Update(world, npc, dt);
             break;
 
         case NPC::HumanRole::BANDIT:

@@ -4,6 +4,7 @@ add_library(worldbox_core
         civilian_behavior.cpp
         warrior_behavior.cpp
         bandit_behavior.cpp
+        captain_behavior.cpp
 )
 
 target_include_directories(worldbox_core
