@@ -1,13 +1,22 @@
 #include "npc/captain_behavior.h"
 #include "environment/world.h"
+#include <algorithm>
 #include <cfloat>
 #include <vector>
-#include <algorithm>
+
+
+uint32_t squadTargetId;
 
 static inline float Dist2(Vector2 a, Vector2 b) {
     float dx = a.x - b.x;
     float dy = a.y - b.y;
     return dx*dx + dy*dy;
+}
+
+static inline Vector2 SafeNormalizeEx(Vector2 v) {
+    float len = sqrtf(v.x * v.x + v.y * v.y);
+    if (len < 0.0001f) return {0.0f, 1.0f};
+    return { v.x / len, v.y / len };
 }
 
 static inline bool PointInRectPx(const Rectangle& r, Vector2 p) {
@@ -19,81 +28,78 @@ static Rectangle ExpandRect(const Rectangle& r, float e) {
     return Rectangle{ r.x - e, r.y - e, r.width + 2*e, r.height + 2*e };
 }
 
-// 15 слотов: 3 ряда по 5 (боевое построение "вперёд")
-static void BuildAttackSlots(std::vector<Vector2>& outSlots) {
-    outSlots.clear();
-    outSlots.reserve(15);
+static Vector2 RotateFromBaseY(Vector2 local, Vector2 forward) {
+    forward = SafeNormalizeEx(forward);
+    float baseAng = atan2f(1.0f, 0.0f); // +Y
+    float ang = atan2f(forward.y, forward.x) - baseAng;
 
-    // локально: +Y вперёд (потом повернём по направлению к цели)
-    // шаги можно подкрутить под CELL_SIZE, но оставим в пикселях
-    const float dx = 22.0f;
-    const float dy = 18.0f;
-
-    for (int row = 0; row < 3; row++) {
-        float y = 20.0f + row * dy;
-        for (int col = 0; col < 5; col++) {
-            float x = (col - 2) * dx;
-            outSlots.push_back(Vector2{ x, y });
-        }
-    }
+    float c = cosf(ang);
+    float s = sinf(ang);
+    return {
+            local.x * c - local.y * s,
+            local.x * s + local.y * c
+    };
 }
 
-static Vector2 Rotate(Vector2 v, float ang) {
-    float c = cosf(ang), s = sinf(ang);
-    return Vector2{ v.x * c - v.y * s, v.x * s + v.y * c };
+namespace CaptainFormation {
+
+    Vector2 GetCaptainFacing(const NPC& captain) {
+        if (captain.captainHasMoveOrder) {
+            Vector2 toTarget = Vector2Subtract(captain.captainMoveTarget, captain.pos);
+            if (Vector2Length(toTarget) > 0.1f) return SafeNormalizeEx(toTarget);
+        }
+
+        if (Vector2Length(captain.vel) > 0.1f) {
+            return SafeNormalizeEx(captain.vel);
+        }
+
+        return {0.0f, 1.0f};
+    }
+
+// MANUAL: походная колонна 2x7 + 1 замыкающий
+// COMBAT: линия с резервом 7 + 5 + 3
+    Vector2 GetSlotOffset(int slot, bool combatMode) {
+        if (slot < 0) slot = 0;
+        if (slot > 14) slot = 14;
+
+        if (!combatMode) {
+            const float colX = 12.0f;
+            const float rowY = 18.0f;
+
+            if (slot < 14) {
+                int row = slot / 2;
+                int col = slot % 2;
+                float x = (col == 0) ? -colX : colX;
+                float y = -(row + 1) * rowY;
+                return { x, y };
+            }
+
+            return { 0.0f, -8.0f * rowY };
+        }
+
+        static const Vector2 battleSlots[15] = {
+                {-54.0f,  22.0f}, {-36.0f,  22.0f}, {-18.0f,  22.0f}, {  0.0f,  22.0f}, { 18.0f,  22.0f}, { 36.0f,  22.0f}, { 54.0f,  22.0f},
+                {-36.0f,   4.0f}, {-18.0f,   4.0f}, {  0.0f,   4.0f}, { 18.0f,   4.0f}, { 36.0f,   4.0f},
+                {-18.0f, -16.0f}, {  0.0f, -16.0f}, { 18.0f, -16.0f}
+        };
+
+        return battleSlots[slot];
+    }
+
+} // namespace CaptainFormation
+
+static void MoveTowards(NPC& npc, Vector2 target, float dt, float speedMul = 1.0f) {
+    Vector2 to = Vector2Subtract(target, npc.pos);
+    if (Vector2Length(to) < 0.001f) {
+        npc.vel = {0, 0};
+        return;
+    }
+
+    Vector2 dir = SafeNormalizeEx(to);
+    npc.vel = Vector2Scale(dir, npc.speed * speedMul);
+    npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
 }
 
-static void RebuildSquad(World& world, NPC& captain) {
-    if (captain.settlementId < 0 || captain.settlementId >= (int)world.settlements.size()) return;
-    if (!world.settlements[captain.settlementId].alive) return;
-
-    // собрать кандидатов: воины этого поселения
-    struct Cand { float d2; uint32_t id; };
-    std::vector<Cand> cands;
-    cands.reserve(64);
-
-    for (auto& n : world.npcs) {
-        if (!n.alive) continue;
-        if (n.humanRole != NPC::HumanRole::WARRIOR) continue;
-        if (n.settlementId != captain.settlementId) continue;
-
-        float d2 = Dist2(n.pos, captain.pos);
-        cands.push_back(Cand{ d2, n.id });
-    }
-
-    std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){ return a.d2 < b.d2; });
-
-    // помечаем топ-15
-    const int maxSquad = 15;
-    std::vector<uint32_t> chosen;
-    for (int i = 0; i < (int)cands.size() && (int)chosen.size() < maxSquad; i++) {
-        chosen.push_back(cands[i].id);
-    }
-
-    // снять тех, кто больше не входит в отряд этого капитана
-    for (auto& n : world.npcs) {
-        if (!n.alive) continue;
-        if (n.humanRole != NPC::HumanRole::WARRIOR) continue;
-        if (n.leaderCaptainId != captain.id) continue;
-
-        bool still = false;
-        for (uint32_t cid : chosen) {
-            if (cid == n.id) { still = true; break; }
-        }
-        if (!still) {
-            n.leaderCaptainId = 0;
-            n.formationSlot = -1;
-        }
-    }
-
-    // назначить слоты выбранным
-    for (int i = 0; i < (int)chosen.size(); i++) {
-        NPC* w = world.FindNpcById(chosen[i]);
-        if (!w) continue;
-        w->leaderCaptainId = captain.id;
-        w->formationSlot = i; // 0..14
-    }
-}
 static int FindNearestBanditInRange(World& world, Vector2 from, float rangePx) {
     const float r2 = rangePx * rangePx;
     int best = -1;
@@ -110,8 +116,10 @@ static int FindNearestBanditInRange(World& world, Vector2 from, float rangePx) {
             best = i;
         }
     }
+
     return best;
 }
+
 static int FindNearestBanditInGroup(World& world, Vector2 from, int groupId) {
     int best = -1;
     float bestD2 = FLT_MAX;
@@ -128,6 +136,29 @@ static int FindNearestBanditInGroup(World& world, Vector2 from, int groupId) {
             best = i;
         }
     }
+
+    return best;
+}
+
+static int FindThreatBanditNearSettlement(World& world, const Settlement& s, Vector2 from) {
+    Rectangle threatRect = ExpandRect(s.boundsPx, 80.0f);
+
+    int best = -1;
+    float bestD2 = FLT_MAX;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const auto& o = world.npcs[i];
+        if (!o.alive) continue;
+        if (o.humanRole != NPC::HumanRole::BANDIT) continue;
+        if (!PointInRectPx(threatRect, o.pos)) continue;
+
+        float d2 = Dist2(o.pos, from);
+        if (d2 < bestD2) {
+            bestD2 = d2;
+            best = i;
+        }
+    }
+
     return best;
 }
 
@@ -144,130 +175,158 @@ static void TryMeleeAttack(NPC& attacker, NPC& target, float dt, float cooldownS
     }
 }
 
+static void RefreshCaptainSquad(World& world, NPC& captain) {
+    if (captain.settlementId < 0 || captain.settlementId >= (int)world.settlements.size()) return;
+    if (!world.settlements[captain.settlementId].alive) return;
+
+    struct Candidate {
+        float d2;
+        uint32_t id;
+    };
+
+    std::vector<Candidate> candidates;
+    candidates.reserve(64);
+
+    for (auto& n : world.npcs) {
+        if (!n.alive) continue;
+        if (n.humanRole != NPC::HumanRole::WARRIOR) continue;
+        if (n.settlementId != captain.settlementId) continue;
+
+        // не крадём воинов у другого капитана
+        if (n.leaderCaptainId != 0 && n.leaderCaptainId != captain.id) continue;
+
+        candidates.push_back({ Dist2(n.pos, captain.pos), n.id });
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate& a, const Candidate& b) { return a.d2 < b.d2; });
+
+    std::vector<uint32_t> chosen;
+    chosen.reserve(15);
+
+    for (int i = 0; i < (int)candidates.size() && (int)chosen.size() < 15; i++) {
+        chosen.push_back(candidates[i].id);
+    }
+
+    for (auto& n : world.npcs) {
+        if (!n.alive) continue;
+        if (n.humanRole != NPC::HumanRole::WARRIOR) continue;
+        if (n.leaderCaptainId != captain.id) continue;
+
+        bool stillChosen = false;
+        for (uint32_t cid : chosen) {
+            if (cid == n.id) {
+                stillChosen = true;
+                break;
+            }
+        }
+
+        if (!stillChosen) {
+            n.leaderCaptainId = 0;
+            n.formationSlot = -1;
+        }
+    }
+
+    for (int slot = 0; slot < (int)chosen.size(); slot++) {
+        NPC* w = world.FindNpcById(chosen[slot]);
+        if (!w) continue;
+        w->leaderCaptainId = captain.id;
+        w->formationSlot = slot;
+    }
+}
+
+static bool ExecuteAttackOrder(World& world, NPC& captain, float dt, int groupId) {
+    int bi = FindNearestBanditInGroup(world, captain.pos, groupId);
+    if (bi == -1) return false;
+
+    NPC& b = world.npcs[bi];
+    captain.captainAttackTargetId = b.id;
+
+    const float meleeRange = 28.0f;
+    float d2 = Dist2(captain.pos, b.pos);
+
+    if (d2 > meleeRange * meleeRange) {
+        MoveTowards(captain, b.pos, dt, 1.0f);
+    } else {
+        captain.vel = {0, 0};
+        TryMeleeAttack(captain, b, dt, 0.75f);
+    }
+
+    return true;
+}
+
 void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
     if (npc.humanRole != NPC::HumanRole::CAPTAIN) return;
 
-    // если поселение потеряно — как воин: блуждать
     if (npc.settlementId < 0 || npc.settlementId >= (int)world.settlements.size() ||
         !world.settlements[npc.settlementId].alive) {
 
         npc.wanderTimer -= dt;
         if (npc.wanderTimer <= 0.0f) {
             npc.wanderTimer = RandomFloat(1.0f, 2.5f);
-            npc.wanderDir = SafeNormalize(RandomUnit2D());
+            npc.wanderDir = SafeNormalizeEx(RandomUnit2D());
         }
+
         npc.vel = Vector2Scale(npc.wanderDir, npc.speed);
         npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
         return;
     }
 
     const Settlement& s = world.settlements[npc.settlementId];
-    // Всегда обновляем отряд, если капитан привязан к поселению
-    RebuildSquad(world, npc);
 
-    // =========================================================
-    // PLAYER ATTACK ORDER: kill whole bandit group
-    // =========================================================
+    RefreshCaptainSquad(world, npc);
+
+    // 1) PLAYER ATTACK ORDER
     if (npc.captainHasAttackOrder && npc.captainAttackGroupId != -1) {
-        int bi = FindNearestBanditInGroup(world, npc.pos, npc.captainAttackGroupId);
-
-        // если группа закончилась — сброс
-        if (bi == -1) {
-            npc.captainHasAttackOrder = false;
-            npc.captainAttackGroupId = -1;
-            npc.captainAttackTargetId = 0;
-        } else {
-            NPC& b = world.npcs[bi];
-            Vector2 target = b.pos;
-
-            // движение к цели
-            Vector2 dir = SafeNormalize(Vector2Subtract(target, npc.pos));
-            npc.vel = Vector2Scale(dir, npc.speed * 1.35f);
-            npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
-
-            // атака в мили
-            const float meleeRange = 28.0f;
-            if (Dist2(npc.pos, target) <= meleeRange * meleeRange) {
-                TryMeleeAttack(npc, b, dt, 0.80f);
-            }
+        if (ExecuteAttackOrder(world, npc, dt, npc.captainAttackGroupId)) {
             return;
         }
+
+        npc.captainHasAttackOrder = false;
+        npc.captainAttackGroupId = -1;
+        npc.captainAttackTargetId = 0;
     }
 
-
-    // 2) РУЧНОЙ РЕЖИМ: капитан слушается ТОЛЬКО игрока
-    // (никаких угроз/авто-атаки, пока игрок не включит AUTO обратно)
+    // 2) MANUAL MODE
     if (!npc.captainAutoMode) {
         if (npc.captainHasMoveOrder) {
-            Vector2 target = npc.captainMoveTarget;
-
-            float d2 = Dist2(npc.pos, target);
+            float d2 = Dist2(npc.pos, npc.captainMoveTarget);
             if (d2 < 10.0f * 10.0f) {
                 npc.captainHasMoveOrder = false;
                 npc.vel = {0, 0};
             } else {
-                Vector2 dir = SafeNormalize(Vector2Subtract(target, npc.pos));
-                npc.vel = Vector2Scale(dir, npc.speed); // скорость капитана = npc.speed
-                npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
+                MoveTowards(npc, npc.captainMoveTarget, dt, 1.0f);
             }
         } else {
-            // без приказа — стоит (или можно слегка держаться у костра, но ты просил слушаться игрока)
             npc.vel = {0, 0};
         }
-        // MANUAL: не преследуем врага, но если он рядом — капитан отбивается
-        const float meleeRange = 20.0f;
-        int nearBandit = FindNearestBanditInRange(world, npc.pos, meleeRange);
+
+        int nearBandit = FindNearestBanditInRange(world, npc.pos, 24.0f);
         if (nearBandit != -1) {
-            NPC& b = world.npcs[nearBandit];
-            TryMeleeAttack(npc, b, dt, 0.80f);
+            TryMeleeAttack(npc, world.npcs[nearBandit], dt, 0.75f);
         }
+
         return;
     }
 
-    // 3) AUTO режим: реагируем только если есть угроза поселению (bandit в пределах bounds +/- расширение)
-    const Rectangle threatRect = ExpandRect(s.boundsPx, 60.0f);
+    // 3) AUTO MODE
+    int threatBandit = FindThreatBanditNearSettlement(world, s, npc.pos);
+    if (threatBandit != -1) {
+        npc.captainHasAttackOrder = true;
+        npc.captainAttackGroupId = world.npcs[threatBandit].banditGroupId;
+        npc.captainAttackTargetId = world.npcs[threatBandit].id;
 
-    int nearestBandit = -1;
-    float nearestD2 = FLT_MAX;
-
-    for (int i = 0; i < (int)world.npcs.size(); i++) {
-        const auto& other = world.npcs[i];
-        if (!other.alive) continue;
-        if (other.humanRole != NPC::HumanRole::BANDIT) continue;
-        if (!PointInRectPx(threatRect, other.pos)) continue;
-
-        float d2 = Dist2(other.pos, npc.pos);
-        if (d2 < nearestD2) {
-            nearestD2 = d2;
-            nearestBandit = i;
-        }
-    }
-
-    if (nearestBandit != -1) {
-        Vector2 target = world.npcs[nearestBandit].pos;
-        // AUTO: если дошли до дистанции удара — атакуем
-        const float meleeRange = 20.0f;
-        if (Dist2(npc.pos, target) <= meleeRange * meleeRange) {
-            NPC& b = world.npcs[nearestBandit];
-            TryMeleeAttack(npc, b, dt, 0.80f);
-        }
-
-        float d2 = Dist2(npc.pos, target);
-        if (d2 < 10.0f * 10.0f) {
-            npc.vel = {0, 0};
-        } else {
-            Vector2 dir = SafeNormalize(Vector2Subtract(target, npc.pos));
-            npc.vel = Vector2Scale(dir, npc.speed);
-            npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
-        }
+        ExecuteAttackOrder(world, npc, dt, npc.captainAttackGroupId);
         return;
     }
 
-    // 4) AUTO без угрозы: idle у костра
-    {
-        Vector2 camp = s.centerPx;
-        Vector2 dir = SafeNormalize(Vector2Subtract(camp, npc.pos));
-        npc.vel = Vector2Scale(dir, npc.speed * 0.6f);
-        npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
+    // 4) AUTO IDLE — держимся у костра / центра
+    Vector2 camp = s.campfirePosPx;
+    if (camp.x == 0.0f && camp.y == 0.0f) camp = s.centerPx;
+
+    if (Dist2(npc.pos, camp) > 16.0f * 16.0f) {
+        MoveTowards(npc, camp, dt, 0.75f);
+    } else {
+        npc.vel = {0, 0};
     }
 }

@@ -2,7 +2,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "raylib.h"
+#include <raylib.h>
 #include "raymath.h"
 #include "npc/npc.h"
 #include "settlement.h"
@@ -23,15 +23,16 @@ public:
     static constexpr int NPC_VARIANTS = 3;
 
     Texture2D npcTexCivilian[NPC_VARIANTS]{};
-    Texture2D npcTexWarrior[NPC_VARIANTS]{};
-    Texture2D npcTexBandit[NPC_VARIANTS]{};
-    Texture2D npcTexCaptain;
-
-
-    bool npcTexCaptainLoaded = false;
     bool npcTexCivilianLoaded[NPC_VARIANTS]{};
+
+    Texture2D npcTexWarrior[NPC_VARIANTS]{};
     bool npcTexWarriorLoaded[NPC_VARIANTS]{};
+
+    Texture2D npcTexBandit[NPC_VARIANTS]{};
     bool npcTexBanditLoaded[NPC_VARIANTS]{};
+
+    Texture2D npcTexCaptain[NPC_VARIANTS]{};
+    bool npcTexCaptainLoaded[NPC_VARIANTS]{};
 
     bool npcSpritesLoaded = false;
 
