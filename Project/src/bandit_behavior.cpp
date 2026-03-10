@@ -154,7 +154,7 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
         if (dx*dx + dy*dy < 16.0f * 16.0f) {
             if (npc.attackCooldown <= 0.0f) {
                 other.hp -= npc.damage;
-                npc.attackCooldown = 1.5f;
+                npc.attackCooldown = 1.00f;
 
                 if (other.hp <= 0.0f) {
                     other.alive = false;
