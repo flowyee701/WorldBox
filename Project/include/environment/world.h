@@ -55,6 +55,18 @@ public:
     float fireAnimT = 0.0f;
     float fireAnimSpeed = 0.10f; // 0.10 = 10 кадров/сек (можно 0.12..0.18)
 
+    // -------------------------------------------------
+    // NPC ids & captain selection
+    // -------------------------------------------------
+    uint32_t nextNpcId = 1;           // ids start at 1
+    uint32_t selectedCaptainId = 0;   // 0 = none selected
+    int selectedCaptainIndex = -1; // индекс в npcs, -1 если никто не выбран
+
+    NPC* FindNpcById(uint32_t id);
+    const NPC* FindNpcById(uint32_t id) const;
+
+    void IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx);
+
     void LoadFireSprites();
     void UnloadFireSprites();
     void UpdateCampfires(); // пересчёт позиций костров по центру поселений
