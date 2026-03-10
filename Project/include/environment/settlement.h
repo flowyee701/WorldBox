@@ -18,6 +18,13 @@ struct Settlement {
     Rectangle boundsPx{0,0,0,0};
     Vector2 campfirePosPx{};  // позиция костра (в пикселях)
 
+    // merged settlement progression / barracks
+    int sourceSettlementCount = 1;   // starts as 1, grows on merges
+    bool hasBarracks = false;
+    Vector2 barracksPosPx{0,0};
+    float barracksWarriorTimer = 10.0f;
+    float barracksCaptainTimer = 150.0f;
+
     // legacy — больше НЕ используем
     // std::vector<Rectangle> zones;
 };
@@ -46,4 +53,3 @@ inline Vector2 RandomUnit2D() {
     float a = GetRandomValue(0, 360) * DEG2RAD;
     return { cosf(a), sinf(a) };
 }
-

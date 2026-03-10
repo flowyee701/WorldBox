@@ -86,6 +86,7 @@ static void TryMeleeAttack(World& world, NPC& attacker, NPC& target, float dt, f
     attacker.attackCooldown -= dt;
     if (attacker.attackCooldown > 0.0f) return;
 
+    world.BeginNpcAttack(attacker, target.pos);
     target.hp -= attacker.damage;
     attacker.attackCooldown = cooldownSeconds;
 
