@@ -1,13 +1,21 @@
 cmake_minimum_required(VERSION 3.20)
-project(WorldBoxProto LANGUAGES CXX)
+project(WorldBoxProto)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(WorldBoxProto main.cpp
+        npc.h
+        settlement.h
+        world.h
+        world.cpp
+        human_behavior.h
+        human_behavior.cpp
+        civilian_behavior.h
+        warrior_behavior.h
+        bandit_behavior.h
+        civilian_behavior.cpp
+        warrior_behavior.cpp
+        bandit_behavior.cpp)
 
 find_package(raylib CONFIG REQUIRED)
-
-add_subdirectory(Project)
-
-# Копируем папку 'assets' в директорию, где лежит скомпилированный бинарник
-file(COPY "${CMAKE_SOURCE_DIR}/Project/assets"
-        DESTINATION "${CMAKE_BINARY_DIR}")
+target_link_libraries(WorldBoxProto raylib)
