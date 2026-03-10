@@ -466,7 +466,7 @@ void World::SpawnCaptain(Vector2 pos) {
 NPC* World::FindNpcById(uint32_t id) {
     if (id == 0) return nullptr;
     for (auto& n : npcs) {
-        if (n.alive && n.id == id) return &n;
+        if (n.alive && !n.isDying && n.id == id) return &n;
     }
     return nullptr;
 }
@@ -474,9 +474,45 @@ NPC* World::FindNpcById(uint32_t id) {
 const NPC* World::FindNpcById(uint32_t id) const {
     if (id == 0) return nullptr;
     for (const auto& n : npcs) {
-        if (n.alive && n.id == id) return &n;
+        if (n.alive && !n.isDying && n.id == id) return &n;
     }
     return nullptr;
+}
+
+void World::BeginNpcDeath(NPC& npc) {
+    if (!npc.alive || npc.isDying) return;
+
+    npc.alive = false;
+    npc.isDying = true;
+    npc.deathTimer = 0.0f;
+    npc.hp = 0.0f;
+    npc.vel = {0.0f, 0.0f};
+    npc.attackCooldown = 0.0f;
+    npc.inCombat = false;
+
+    npc.manualControl = false;
+    npc.hasMoveTarget = false;
+    npc.captainHasMoveOrder = false;
+    npc.captainHasAttackOrder = false;
+    npc.captainAttackGroupId = -1;
+    npc.captainAttackTargetId = 0;
+
+    if (selectedCaptainId == npc.id) {
+        selectedCaptainId = 0;
+    }
+
+    if (npc.humanRole == NPC::HumanRole::CAPTAIN) {
+        for (auto& other : npcs) {
+            if (other.leaderCaptainId == npc.id) {
+                other.leaderCaptainId = 0;
+                other.formationSlot = -1;
+                other.inCombat = false;
+            }
+        }
+    }
+
+    npc.leaderCaptainId = 0;
+    npc.formationSlot = -1;
 }
 
 void World::IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx) {
@@ -589,7 +625,15 @@ void World::Update(float dt) {
 
     // -------- update all NPCs --------
     for (auto& npc : npcs) {
-        if (npc.type == NPC::Type::HUMAN) {
+        if (npc.isDying) {
+            npc.deathTimer += dt;
+            if (npc.deathTimer > npc.deathDuration) {
+                npc.deathTimer = npc.deathDuration;
+            }
+            continue;
+        }
+
+        if (npc.type == NPC::Type::HUMAN && npc.alive) {
             HumanBehavior::Update(*this, npc, dt);
         }
 
@@ -609,7 +653,7 @@ void World::Update(float dt) {
 
     // --- auto-bind wild HUMAN NPC to first settlement they enter ---
     for (auto& npc : npcs) {
-        if (!npc.alive) continue;
+        if (!npc.alive || npc.isDying) continue;
         if (npc.settlementId != -1) continue;
 
         if (npc.humanRole != NPC::HumanRole::CIVILIAN &&
@@ -630,7 +674,9 @@ void World::Update(float dt) {
     // -------- cleanup dead bandits / dead npc --------
     npcs.erase(
             std::remove_if(npcs.begin(), npcs.end(),
-                           [](const NPC& n) { return !n.alive; }),
+                           [](const NPC& n) {
+                               return !n.alive && (!n.isDying || n.deathTimer >= n.deathDuration);
+                           }),
             npcs.end()
     );
 
@@ -639,7 +685,7 @@ void World::Update(float dt) {
 
         bool anyoneLeft = false;
         for (const auto& npc : npcs) {
-            if (!npc.alive) continue;
+            if (!npc.alive || npc.isDying) continue;
             if (npc.settlementId == (&s - &settlements[0]) &&
                 npc.humanRole != NPC::HumanRole::BANDIT) {
                 anyoneLeft = true;
@@ -744,7 +790,7 @@ void World::Draw() const {
 // =====================
     for (const auto& npc : npcs) {
 
-        if (!npc.alive) continue;
+        if (!npc.alive && !npc.isDying) continue;
 
         int v = (int)(npc.skinId % NPC_VARIANTS);
 
@@ -775,13 +821,11 @@ void World::Draw() const {
         float mult = 1.0f;
         if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f;
         if (npc.humanRole == NPC::HumanRole::BANDIT)   mult = 1.05f;
-        if (npc.humanRole == NPC::HumanRole::CAPTAIN)  mult = 1.0f; // такой же размер, как у остальных боевых NPC
+        if (npc.humanRole == NPC::HumanRole::CAPTAIN)  mult = 1.6f; // такой же размер, как у остальных боевых NPC
 
         // базовый размер на карте: 2 клетки
         float w = (float)CELL_SIZE * 2.0f * mult;
         float h = (float)CELL_SIZE * 2.0f * mult;
-
-        Rectangle src{ 0.0f, 0.0f, (float)tex->width, (float)tex->height };
 
         // якорим "ноги" в npc.pos: низ спрайта = npc.pos.y
         Rectangle dst{
@@ -795,26 +839,54 @@ void World::Draw() const {
             float size = CELL_SIZE * 0.4f;
             Color c = GetSafeSettlementColor(*this, npc.settlementId);
 
+            if (npc.isDying) {
+                float t = Clamp(npc.deathTimer / npc.deathDuration, 0.0f, 1.0f);
+                c.a = (unsigned char)(255.0f * (1.0f - 0.70f * t));
+            }
+
             switch (npc.humanRole) {
-                case NPC::HumanRole::CIVILIAN: DrawCircleV(npc.pos, size, c); break;
-                case NPC::HumanRole::WARRIOR:  {
-                    DrawRectangle(npc.pos.x-size, npc.pos.y-size, size*2, size*2, c); break;
-                }
-                case NPC::HumanRole::BANDIT:   DrawTriangle(
+                case NPC::HumanRole::CIVILIAN:
+                    DrawCircleV(npc.pos, size, c);
+                    break;
+                case NPC::HumanRole::WARRIOR:
+                    DrawRectangle(npc.pos.x-size, npc.pos.y-size, size*2, size*2, c);
+                    break;
+                case NPC::HumanRole::BANDIT: {
+                    Color banditCol = Color{160,80,200,255};
+                    if (npc.isDying) {
+                        float t = Clamp(npc.deathTimer / npc.deathDuration, 0.0f, 1.0f);
+                        banditCol.a = (unsigned char)(255.0f * (1.0f - 0.70f * t));
+                    }
+                    DrawTriangle(
                             {npc.pos.x, npc.pos.y + CELL_SIZE*0.7f},
                             {npc.pos.x + CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
                             {npc.pos.x - CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
-                            Color{160,80,200,255}); break;
-                default: break;
+                            banditCol);
+                    break;
+                }
+                default:
+                    break;
             }
             continue;
         }
 
-        // --- ВСЕГДА рисуем в размере от клетки, а не от tex->width ---
+        Rectangle src{ 0.0f, 0.0f, (float)tex->width, (float)tex->height };
 
+        Rectangle drawDst = dst;
+        Color tint = WHITE;
 
-        // НЕ ТИНТУЕМ спрайт (иначе можно получить "пропал" из-за альфы/смешивания)
-        DrawTexturePro(*tex, src, dst, Vector2{0,0}, 0.0f, WHITE);
+        if (npc.isDying) {
+            float t = Clamp(npc.deathTimer / npc.deathDuration, 0.0f, 1.0f);
+
+            drawDst.y += floorf(10.0f * t);
+            drawDst.x -= floorf(w * 0.06f * t);
+            drawDst.width = w * (1.0f + 0.12f * t);
+            drawDst.height = h * (1.0f - 0.55f * t);
+
+            tint.a = (unsigned char)(255.0f * (1.0f - 0.70f * t));
+        }
+
+        DrawTexturePro(*tex, src, drawDst, Vector2{0,0}, 0.0f, tint);
         if (npc.humanRole == NPC::HumanRole::CAPTAIN && npc.id == selectedCaptainId) {
             DrawCircleLines((int)npc.pos.x, (int)npc.pos.y, CELL_SIZE * 1.3f, YELLOW);
             DrawCircleLines((int)npc.pos.x, (int)npc.pos.y, CELL_SIZE * 1.3f + 1.0f, BLACK);

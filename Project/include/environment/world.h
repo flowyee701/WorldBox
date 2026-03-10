@@ -65,6 +65,7 @@ public:
 
     NPC* FindNpcById(uint32_t id);
     const NPC* FindNpcById(uint32_t id) const;
+    void BeginNpcDeath(NPC& npc);
 
     void IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx);
 

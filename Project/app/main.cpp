@@ -12,6 +12,7 @@ enum class AppState
 
 enum class SpawnMode { CIVILIAN, WARRIOR };
 enum class WarriorRank { WARRIOR, CAPTAIN };
+enum class ToolMode { NONE, KILL };
 
 static void ApplyBorderlessFullscreen() {
     int monitor = GetCurrentMonitor();
@@ -44,7 +45,7 @@ static int PickNpcIndexByRole(const World& world, Vector2 mouseWorld, NPC::Human
 
     for (int i = 0; i < (int)world.npcs.size(); i++) {
         const NPC& n = world.npcs[i];
-        if (!n.alive) continue;
+        if (!n.alive || n.isDying) continue;
         if (n.humanRole != role) continue;
 
         Vector2 pickPos = { n.pos.x, n.pos.y - 8.0f };
@@ -66,6 +67,58 @@ static const char* GetCaptainModeLabel(const NPC& cap) {
     return "AUTO";
 }
 
+static int PickAnyNpcIndex(const World& world, Vector2 mouseWorld, float radius) {
+    const float r2 = radius * radius;
+    int best = -1;
+    float bestD2 = r2;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& n = world.npcs[i];
+        if (!n.alive || n.isDying) continue;
+
+        Vector2 pickPos = { n.pos.x, n.pos.y - 8.0f };
+
+        float dx = pickPos.x - mouseWorld.x;
+        float dy = pickPos.y - mouseWorld.y;
+        float d2 = dx*dx + dy*dy;
+
+        if (d2 <= bestD2) {
+            bestD2 = d2;
+            best = i;
+        }
+    }
+
+    return best;
+}
+
+static const Texture2D* GetCurrentModeIcon(const World& world,
+                                           SpawnMode mode,
+                                           WarriorRank warriorRank,
+                                           bool toolsOpen,
+                                           ToolMode toolMode,
+                                           bool& loaded)
+{
+    loaded = false;
+
+    if (toolsOpen && toolMode == ToolMode::KILL) {
+        loaded = world.npcTexBanditLoaded[0];
+        return &world.npcTexBandit[0];
+    }
+
+    if (mode == SpawnMode::CIVILIAN) {
+        loaded = world.npcTexCivilianLoaded[0];
+        return &world.npcTexCivilian[0];
+    }
+
+    if (warriorRank == WarriorRank::CAPTAIN) {
+        loaded = world.npcTexCaptainLoaded[0];
+        return &world.npcTexCaptain[0];
+    }
+
+    loaded = world.npcTexWarriorLoaded[0];
+    return &world.npcTexWarrior[0];
+}
+
 int main() {
     const int windowedWidth = 1600;
     const int windowedHeight = 900;
@@ -85,6 +138,8 @@ int main() {
     float userZoom = 1.0f;
     SpawnMode mode = SpawnMode::CIVILIAN;
     WarriorRank warriorRank = WarriorRank::WARRIOR;
+    bool toolsOpen = false;
+    ToolMode toolMode = ToolMode::NONE;
     Vector2 lastMouse = GetMousePosition();
 
     while (!WindowShouldClose()) {
@@ -178,19 +233,30 @@ int main() {
                                          (float)sh / (float)world.worldH);
                 camera.zoom = fitZoom * userZoom;
 
-                if (IsKeyPressed(KEY_ONE)) {
-                    mode = SpawnMode::CIVILIAN;
+                if (IsKeyPressed(KEY_ZERO)) {
+                    toolsOpen = !toolsOpen;
+                    toolMode = toolsOpen ? ToolMode::KILL : ToolMode::NONE;
                 }
 
-                if (IsKeyPressed(KEY_TWO)) {
-                    mode = SpawnMode::WARRIOR;
-                    warriorRank = WarriorRank::WARRIOR;
-                }
+                if (!toolsOpen) {
+                    if (IsKeyPressed(KEY_ONE)) {
+                        mode = SpawnMode::CIVILIAN;
+                    }
 
-                if (mode == SpawnMode::WARRIOR && IsKeyPressed(KEY_K)) {
-                    warriorRank = (warriorRank == WarriorRank::WARRIOR)
-                                  ? WarriorRank::CAPTAIN
-                                  : WarriorRank::WARRIOR;
+                    if (IsKeyPressed(KEY_TWO)) {
+                        mode = SpawnMode::WARRIOR;
+                        warriorRank = WarriorRank::WARRIOR;
+                    }
+
+                    if (mode == SpawnMode::WARRIOR && IsKeyPressed(KEY_K)) {
+                        warriorRank = (warriorRank == WarriorRank::WARRIOR)
+                                      ? WarriorRank::CAPTAIN
+                                      : WarriorRank::WARRIOR;
+                    }
+                } else {
+                    if (IsKeyPressed(KEY_ONE)) {
+                        toolMode = ToolMode::KILL;
+                    }
                 }
 
                 if (IsKeyPressed(KEY_A) && world.selectedCaptainId != 0) {
@@ -226,7 +292,7 @@ int main() {
                 float wheel = GetMouseWheelMove();
                 if (wheel != 0.0f) {
                     userZoom += wheel * 0.1f;
-                    userZoom = Clamp(userZoom, 0.5f, 3.0f);
+                    userZoom = Clamp(userZoom, 0.5f, 12.0f);
                 }
 
                 if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
@@ -263,7 +329,13 @@ int main() {
                             }
                         }
                         else {
-                            if (mode == SpawnMode::CIVILIAN) {
+                            if (toolsOpen && toolMode == ToolMode::KILL) {
+                                int clickedNpc = PickAnyNpcIndex(world, mouseWorld, 18.0f);
+                                if (clickedNpc != -1) {
+                                    world.BeginNpcDeath(world.npcs[clickedNpc]);
+                                }
+                            }
+                            else if (mode == SpawnMode::CIVILIAN) {
                                 world.SpawnCivilian(mouseWorld);
                             } else if (mode == SpawnMode::WARRIOR) {
                                 if (warriorRank == WarriorRank::CAPTAIN) {
@@ -292,19 +364,40 @@ int main() {
             world.Draw();
             EndMode2D();
 
-            int uiX = 20;
+            int iconX = 20;
+            int iconY = 20;
+            int uiX = 64;
             int uiY = 20;
             int spacing = 26;
 
-            const char* modeStr =
-                    (mode == SpawnMode::CIVILIAN) ? "Mode: 1 CIVILIAN" :
-                    (mode == SpawnMode::WARRIOR)  ? "Mode: 2 WARRIOR"  :
-                    "Mode: ?";
+            bool modeIconLoaded = false;
+            const Texture2D* modeIcon = GetCurrentModeIcon(world, mode, warriorRank, toolsOpen, toolMode, modeIconLoaded);
+
+            DrawRectangle(iconX - 4, iconY - 4, 40, 40, Color{0, 0, 0, 120});
+            DrawRectangleLines(iconX - 4, iconY - 4, 40, 40, Fade(RAYWHITE, 0.25f));
+
+            if (modeIcon && modeIconLoaded && modeIcon->id != 0) {
+                Rectangle src = {0.0f, 0.0f, (float)modeIcon->width, (float)modeIcon->height};
+                Rectangle dst = {(float)iconX, (float)iconY, 32.0f, 32.0f};
+                Color iconTint = (toolsOpen && toolMode == ToolMode::KILL)
+                                 ? Color{255, 140, 140, 255}
+                                 : WHITE;
+                DrawTexturePro(*modeIcon, src, dst, Vector2{0,0}, 0.0f, iconTint);
+            }
+
+            const char* modeStr = toolsOpen
+                    ? "Mode: 0 TOOLS"
+                    : ((mode == SpawnMode::CIVILIAN) ? "Mode: 1 CIVILIAN"
+                                                     : "Mode: 2 WARRIOR");
 
             DrawText(modeStr, uiX, uiY, 20, RAYWHITE);
             uiY += spacing;
 
-            if (mode == SpawnMode::WARRIOR) {
+            if (toolsOpen) {
+                DrawText("Tool: 1 KILL NPC", uiX, uiY, 20, Color{255, 170, 170, 255});
+                uiY += spacing;
+            }
+            else if (mode == SpawnMode::WARRIOR) {
                 const char* rankStr =
                         (warriorRank == WarriorRank::CAPTAIN)
                         ? "Rank: CAPTAIN (K)"
@@ -316,7 +409,7 @@ int main() {
             const char* t1="Shift+LMB Captain: Select";
             const char* t2="Shift+LMB Ground: Move selected captain";
             const char* t3="Shift+LMB Bandit: Attack whole bandit group";
-            const char* t4="A: Toggle AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
+            const char* t4="0: Tools | 1/2: Spawn modes | A: AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
 
             DrawText(t1, uiX, uiY, 20, RAYWHITE); uiY += spacing;
             DrawText(t2, uiX, uiY, 20, RAYWHITE); uiY += spacing;
