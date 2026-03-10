@@ -5,12 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 include(FetchContent)
 
-# try system raylib first (macOS / brew)
 find_package(raylib QUIET)
 
-# fallback for Windows / fresh machines
 if (NOT raylib_FOUND)
-
     message(STATUS "raylib not found locally. Fetching from github...")
 
     FetchContent_Declare(
@@ -20,10 +17,9 @@ if (NOT raylib_FOUND)
     )
 
     FetchContent_MakeAvailable(raylib)
-
 endif()
 
 add_subdirectory(Project)
 
-find_package(raylib CONFIG REQUIRED)
-target_link_libraries(WorldBoxProto raylib)
+file(COPY "${CMAKE_SOURCE_DIR}/Project/assets"
+        DESTINATION "${CMAKE_BINARY_DIR}")

@@ -10,5 +10,4 @@ add_library(worldbox_core
 target_include_directories(worldbox_core PUBLIC
         ${CMAKE_SOURCE_DIR}/Project/include
 )
-
 target_link_libraries(worldbox_core PUBLIC raylib)
