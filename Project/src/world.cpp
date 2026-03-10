@@ -138,7 +138,7 @@ void World::LoadNpcSprites()
         loadOne(npcTexBandit[i], npcTexBanditLoaded[i],
                 (std::string("assets/npc/bandit/bandit_") + std::to_string(i) + ".png").c_str());
     }
-    loadOne(npcTexCaptain, npcTexCaptainLoaded, "assets/npc/captain/captain_0.png");
+    loadOne(npcTexCaptain, npcTexCaptainLoaded, "assets/npc/captain/captain_1.png");
 
     npcSpritesLoaded = true;
 }
@@ -314,6 +314,7 @@ static Vector2 RandomEdgeSpawn(int w, int h) {
 void World::SpawnCivilian(Vector2 pos) {
 
     NPC npc;
+    npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::CIVILIAN;
     npc.skinId = (uint16_t)GetRandomValue(0, 2); // 0..2
@@ -324,6 +325,7 @@ void World::SpawnCivilian(Vector2 pos) {
     npc.alive = true;
     npc.settlementId = -1;
     npc.damage = 0.0f;
+
 
     // 1) если клик внутри существующего поселения — просто присоединяем
     int sid = -1;
@@ -396,13 +398,15 @@ void World::SpawnCivilian(Vector2 pos) {
 
 void World::SpawnWarrior(Vector2 pos) {
     NPC npc;
+    npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::WARRIOR;
     npc.skinId = (uint16_t)GetRandomValue(0, 2);
     npc.pos = pos;
     npc.vel = {0,0};
+    npc.speed = 35.0f; // скорость воина (и капитана тоже)
     npc.hp = 200.0f;
-    npc.damage = 20.0f;
+    npc.damage =18.0f;
     npc.settlementId = -1;
 
     // 🔹 НОВОЕ: если клик внутри поселения — сразу привязываем
@@ -418,6 +422,7 @@ void World::SpawnWarrior(Vector2 pos) {
 }
 void World::SpawnCaptain(Vector2 pos) {
     NPC npc;
+    npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::CAPTAIN; // <-- ВАЖНО
     npc.isCaptain = true;
@@ -426,9 +431,9 @@ void World::SpawnCaptain(Vector2 pos) {
     npc.pos = pos;
     npc.vel = {0,0};
 
-    npc.hp = 350.0f;
-    npc.damage = 35.0f;
-    npc.speed = 35.0f;
+    npc.hp = 240.0f;
+    npc.damage = 20.0f;
+    npc.speed = 35.0f; // такая же как у воина (см. SpawnWarrior)
 
     npc.settlementId = -1;
 
@@ -442,6 +447,31 @@ void World::SpawnCaptain(Vector2 pos) {
     }
 
     npcs.push_back(npc);
+}
+NPC* World::FindNpcById(uint32_t id) {
+    if (id == 0) return nullptr;
+    for (auto& n : npcs) {
+        if (n.alive && n.id == id) return &n;
+    }
+    return nullptr;
+}
+
+const NPC* World::FindNpcById(uint32_t id) const {
+    if (id == 0) return nullptr;
+    for (const auto& n : npcs) {
+        if (n.alive && n.id == id) return &n;
+    }
+    return nullptr;
+}
+
+void World::IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx) {
+    NPC* cap = FindNpcById(captainId);
+    if (!cap) return;
+    if (cap->humanRole != NPC::HumanRole::CAPTAIN) return;
+
+    cap->manualControl = true;
+    cap->hasMoveTarget = true;
+    cap->moveTargetPx = targetPx;
 }
 
 static void DrawBanditTriangle(Vector2 pos, float size, Color color) {
@@ -471,6 +501,10 @@ void World::Init()
 
     LoadFireSprites();
     UpdateCampfires();
+    settlements.clear();
+    npcs.clear();
+    nextNpcId = 1;
+    selectedCaptainId = 0;
 }
 void World::Shutdown()
 {
@@ -506,6 +540,7 @@ void World::Update(float dt) {
 
         for (int i = 0; i < count; i++) {
             NPC npc;
+            npc.id = nextNpcId++;
             npc.type = NPC::Type::HUMAN;
             npc.humanRole = NPC::HumanRole::BANDIT;
             npc.skinId = (uint16_t)GetRandomValue(0, 2);
@@ -515,6 +550,8 @@ void World::Update(float dt) {
             npc.banditGroupDir = dir;
 
             npc.speed = 40.0f;
+            npc.hp = 170.0f;
+            npc.damage = 16.0f;
             npc.pos = {
                     spawnPos.x + GetRandomValue(-10, 10),
                     spawnPos.y + GetRandomValue(-10, 10)
@@ -546,7 +583,8 @@ void World::Update(float dt) {
         if (npc.settlementId != -1) continue;
 
         if (npc.humanRole != NPC::HumanRole::CIVILIAN &&
-            npc.humanRole != NPC::HumanRole::WARRIOR) {
+            npc.humanRole != NPC::HumanRole::WARRIOR &&
+            npc.humanRole != NPC::HumanRole::CAPTAIN) {
             continue;
         }
 
@@ -717,8 +755,9 @@ void World::Draw() const {
         float mult = 1.0f; // общий множитель
         if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f; // жители чуть больше
         if (npc.humanRole == NPC::HumanRole::BANDIT)  mult = 1.05f; // чуть крупнее (или 1.0f)
+        if (npc.humanRole == NPC::HumanRole::CAPTAIN)  mult = 1.5f; // чуть крупнее (или 1.0f)
 
-        // базовый размер на карте: 2 клетки (как ты хотел раньше)
+        // базовый размер на карте: 2 клетки
         float w = (float)CELL_SIZE * 2.0f * mult;
         float h = (float)CELL_SIZE * 2.0f * mult;
 
@@ -765,7 +804,7 @@ void World::Draw() const {
             // позиция над головой: top спрайта = npc.pos.y - h
             Vector2 c = {
                     (float)((int)npc.pos.x),
-                    (float)((int)(npc.pos.y - h - 6.0f))  // чуть выше; подстрой 4..8
+                    (float)((int)(npc.pos.y - h - 8.0f))  // чуть выше; подстрой 4..8
             };
 
             const int r = 3; // размер ромбика
