@@ -82,7 +82,7 @@ static int FindNearestBanditInGroup(const World& world, Vector2 from, int groupI
     return best;
 }
 
-static void TryMeleeAttack(NPC& attacker, NPC& target, float dt, float cooldownSeconds) {
+static void TryMeleeAttack(World& world, NPC& attacker, NPC& target, float dt, float cooldownSeconds) {
     attacker.attackCooldown -= dt;
     if (attacker.attackCooldown > 0.0f) return;
 
@@ -91,7 +91,7 @@ static void TryMeleeAttack(NPC& attacker, NPC& target, float dt, float cooldownS
 
     if (target.hp <= 0.0f) {
         target.hp = 0.0f;
-        target.alive = false;
+        world.BeginNpcDeath(target);
     }
 }
 
@@ -154,7 +154,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
                         MoveTowards(npc, b.pos, dt, 1.15f);
                     } else {
                         npc.vel = {0, 0};
-                        TryMeleeAttack(npc, b, dt, 0.80f);
+                        TryMeleeAttack(world, npc, b, dt, 0.80f);
                     }
                     return;
                 }
@@ -231,7 +231,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
         }
 
         if (nearestBandit != -1 && currentD2 <= meleeRange * meleeRange) {
-            TryMeleeAttack(npc, world.npcs[nearestBandit], dt, 0.80f);
+            TryMeleeAttack(world, npc, world.npcs[nearestBandit], dt, 0.80f);
         }
 
         return;
