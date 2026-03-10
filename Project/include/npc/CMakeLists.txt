@@ -1,4 +1,5 @@
-add_library(npc_core INTERFACE)
+add_library(npc_core INTERFACE
+        captain_behavior.h)
 
 target_include_directories(npc_core
         INTERFACE
