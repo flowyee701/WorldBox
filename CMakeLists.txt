@@ -26,8 +26,6 @@ endif()
 
 add_subdirectory(Project)
 
-target_link_libraries(WorldBoxProto PRIVATE worldbox_core raylib)
-
 # Копируем папку 'assets' в директорию, где лежит скомпилированный бинарник
 file(COPY "${CMAKE_SOURCE_DIR}/Project/assets"
         DESTINATION "${CMAKE_BINARY_DIR}")
