@@ -10,18 +10,14 @@
 // ------------------------------------------------------------
 // Helpers
 static Vector2 RandomOutsideSpawn(int w, int h) {
-    const float margin = 80.0f;
-
+    // Теперь спавним bandit-группы прямо на кромке мира,
+    // чтобы NPC никогда не существовали за его пределами.
     int side = GetRandomValue(0, 3);
     switch (side) {
-        case 0:
-            return {-margin, (float) GetRandomValue(0, h)};          // left
-        case 1:
-            return {(float) w + margin, (float) GetRandomValue(0, h)};// right
-        case 2:
-            return {(float) GetRandomValue(0, w), -margin};          // top
-        default:
-            return {(float) GetRandomValue(0, w), (float) h + margin};// bottom
+        case 0: return {0.0f,        (float)GetRandomValue(0, h)};
+        case 1: return {(float)w,    (float)GetRandomValue(0, h)};
+        case 2: return {(float)GetRandomValue(0, w), 0.0f};
+        default:return {(float)GetRandomValue(0, w), (float)h};
     }
 }
 static float ClampF(float v, float a, float b) { return (v < a) ? a : (v > b) ? b : v; }
@@ -48,6 +44,16 @@ static Vector2 NearestTileCenterPx(const World& world, const Settlement& s, Vect
         if (d2 < bestD2) { bestD2 = d2; best = c; }
     }
     return best;
+}
+static void ClampNpcInsideWorld(NPC& npc, int worldW, int worldH) {
+    float oldX = npc.pos.x;
+    float oldY = npc.pos.y;
+
+    npc.pos.x = ClampF(npc.pos.x, 0.0f, (float)worldW);
+    npc.pos.y = ClampF(npc.pos.y, 0.0f, (float)worldH);
+
+    if (npc.pos.x != oldX) npc.vel.x = 0.0f;
+    if (npc.pos.y != oldY) npc.vel.y = 0.0f;
 }
 static Vector2 ClosestPointInRectPx(Vector2 p, const Rectangle& rPx)
 {
@@ -137,8 +143,10 @@ void World::LoadNpcSprites()
 
         loadOne(npcTexBandit[i], npcTexBanditLoaded[i],
                 (std::string("assets/npc/bandit/bandit_") + std::to_string(i) + ".png").c_str());
+
+        loadOne(npcTexCaptain[i], npcTexCaptainLoaded[i],
+                (std::string("assets/npc/captain/captain_") + std::to_string(i) + ".png").c_str());
     }
-    loadOne(npcTexCaptain, npcTexCaptainLoaded, "assets/npc/captain/captain_0.png");
 
     npcSpritesLoaded = true;
 }
@@ -149,7 +157,7 @@ void World::UnloadNpcSprites()
         if (npcTexCivilianLoaded[i]) { UnloadTexture(npcTexCivilian[i]); npcTexCivilianLoaded[i] = false; }
         if (npcTexWarriorLoaded[i])  { UnloadTexture(npcTexWarrior[i]);  npcTexWarriorLoaded[i]  = false; }
         if (npcTexBanditLoaded[i])   { UnloadTexture(npcTexBandit[i]);   npcTexBanditLoaded[i]   = false; }
-        if (npcTexCaptainLoaded) { UnloadTexture(npcTexCaptain); npcTexCaptainLoaded = false; }
+        if (npcTexCaptainLoaded[i])  { UnloadTexture(npcTexCaptain[i]);  npcTexCaptainLoaded[i]  = false; }
     }
     npcSpritesLoaded = false;
 }
@@ -314,6 +322,7 @@ static Vector2 RandomEdgeSpawn(int w, int h) {
 void World::SpawnCivilian(Vector2 pos) {
 
     NPC npc;
+    npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::CIVILIAN;
     npc.skinId = (uint16_t)GetRandomValue(0, 2); // 0..2
@@ -324,6 +333,7 @@ void World::SpawnCivilian(Vector2 pos) {
     npc.alive = true;
     npc.settlementId = -1;
     npc.damage = 0.0f;
+
 
     // 1) если клик внутри существующего поселения — просто присоединяем
     int sid = -1;
@@ -396,13 +406,15 @@ void World::SpawnCivilian(Vector2 pos) {
 
 void World::SpawnWarrior(Vector2 pos) {
     NPC npc;
+    npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
     npc.humanRole = NPC::HumanRole::WARRIOR;
     npc.skinId = (uint16_t)GetRandomValue(0, 2);
     npc.pos = pos;
     npc.vel = {0,0};
+    npc.speed = 35.0f; // скорость воина (и капитана тоже)
     npc.hp = 200.0f;
-    npc.damage = 20.0f;
+    npc.damage =18.0f;
     npc.settlementId = -1;
 
     // 🔹 НОВОЕ: если клик внутри поселения — сразу привязываем
@@ -418,21 +430,29 @@ void World::SpawnWarrior(Vector2 pos) {
 }
 void World::SpawnCaptain(Vector2 pos) {
     NPC npc;
+    npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
-    npc.humanRole = NPC::HumanRole::CAPTAIN; // <-- ВАЖНО
+    npc.humanRole = NPC::HumanRole::CAPTAIN;
+    npc.warriorRank = NPC::WarriorRank::CAPTAIN;
     npc.isCaptain = true;
 
-    npc.skinId = 0; // если позже сделаешь варианты капитана
+    npc.skinId = (uint16_t)GetRandomValue(0, NPC_VARIANTS - 1);
     npc.pos = pos;
-    npc.vel = {0,0};
+    npc.vel = {0, 0};
 
-    npc.hp = 350.0f;
-    npc.damage = 35.0f;
+    // Сбалансированный капитан: сильнее воина, но не "босс"
     npc.speed = 35.0f;
+    npc.hp = 260.0f;
+    npc.damage = 22.0f;
+
+    npc.captainAutoMode = true;
+    npc.captainHasMoveOrder = false;
+    npc.captainHasAttackOrder = false;
+    npc.captainAttackGroupId = -1;
+    npc.captainAttackTargetId = 0;
 
     npc.settlementId = -1;
 
-    // если клик внутри поселения — привязываем
     for (int i = 0; i < (int)settlements.size(); i++) {
         if (!settlements[i].alive) continue;
         if (PointInSettlementPx(settlements[i], pos)) {
@@ -442,6 +462,42 @@ void World::SpawnCaptain(Vector2 pos) {
     }
 
     npcs.push_back(npc);
+}
+NPC* World::FindNpcById(uint32_t id) {
+    if (id == 0) return nullptr;
+    for (auto& n : npcs) {
+        if (n.alive && n.id == id) return &n;
+    }
+    return nullptr;
+}
+
+const NPC* World::FindNpcById(uint32_t id) const {
+    if (id == 0) return nullptr;
+    for (const auto& n : npcs) {
+        if (n.alive && n.id == id) return &n;
+    }
+    return nullptr;
+}
+
+void World::IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx) {
+    NPC* cap = FindNpcById(captainId);
+    if (!cap) return;
+    if (cap->humanRole != NPC::HumanRole::CAPTAIN) return;
+
+    selectedCaptainId = captainId;
+
+    cap->captainAutoMode = false;
+    cap->captainHasMoveOrder = true;
+    cap->captainMoveTarget = targetPx;
+
+    cap->captainHasAttackOrder = false;
+    cap->captainAttackGroupId = -1;
+    cap->captainAttackTargetId = 0;
+
+    // поддерживаем старые поля, чтобы не было рассинхрона с остальным кодом
+    cap->manualControl = true;
+    cap->hasMoveTarget = true;
+    cap->moveTargetPx = targetPx;
 }
 
 static void DrawBanditTriangle(Vector2 pos, float size, Color color) {
@@ -471,6 +527,10 @@ void World::Init()
 
     LoadFireSprites();
     UpdateCampfires();
+    settlements.clear();
+    npcs.clear();
+    nextNpcId = 1;
+    selectedCaptainId = 0;
 }
 void World::Shutdown()
 {
@@ -486,17 +546,15 @@ void World::Shutdown()
 
 void World::Update(float dt) {
 
-    // -------- bandit group spawning (DEBUG: often) --------
+    // -------- bandit group spawning --------
     banditSpawnTimer -= dt;
 
-
     if (banditSpawnTimer <= 0.0f) {
-        banditSpawnTimer = 45.0f; // frequent for debug
+        banditSpawnTimer = 45.0f;
 
         int count = GetRandomValue(5, 8);
         Vector2 spawnPos = RandomOutsideSpawn(worldW, worldH);
 
-// направление ВСЕГДА внутрь карты
         Vector2 toWorldCenter = {
                 worldW * 0.5f - spawnPos.x,
                 worldH * 0.5f - spawnPos.y
@@ -506,6 +564,7 @@ void World::Update(float dt) {
 
         for (int i = 0; i < count; i++) {
             NPC npc;
+            npc.id = nextNpcId++;
             npc.type = NPC::Type::HUMAN;
             npc.humanRole = NPC::HumanRole::BANDIT;
             npc.skinId = (uint16_t)GetRandomValue(0, 2);
@@ -515,38 +574,47 @@ void World::Update(float dt) {
             npc.banditGroupDir = dir;
 
             npc.speed = 40.0f;
+            npc.hp = 170.0f;
+            npc.damage = 16.0f;
             npc.pos = {
-                    spawnPos.x + GetRandomValue(-10, 10),
-                    spawnPos.y + GetRandomValue(-10, 10)
+                    spawnPos.x + (float)GetRandomValue(-10, 10),
+                    spawnPos.y + (float)GetRandomValue(-10, 10)
             };
             npc.vel = {dir.x * npc.speed, dir.y * npc.speed};
 
+            ClampNpcInsideWorld(npc, worldW, worldH);
             npcs.push_back(npc);
         }
     }
 
     // -------- update all NPCs --------
-    for (auto &npc: npcs) {
+    for (auto& npc : npcs) {
         if (npc.type == NPC::Type::HUMAN) {
             HumanBehavior::Update(*this, npc, dt);
         }
+
+        if (npc.alive) {
+            ClampNpcInsideWorld(npc, worldW, worldH);
+        }
     }
-    // анимация костра
+
+    // -------- fire animation --------
     fireAnimT += dt;
     if (fireAnimT >= fireAnimSpeed) {
         fireAnimT = 0.0f;
         fireFrame = (fireFrame + 1) % FIRE_FRAMES;
     }
 
-// если поселения меняются/мерджатся — пересчитываем позиции костров
     UpdateCampfires();
-    // --- автопривязка диких NPC к первому поселению, в которое они вошли ---
+
+    // --- auto-bind wild HUMAN NPC to first settlement they enter ---
     for (auto& npc : npcs) {
         if (!npc.alive) continue;
         if (npc.settlementId != -1) continue;
 
         if (npc.humanRole != NPC::HumanRole::CIVILIAN &&
-            npc.humanRole != NPC::HumanRole::WARRIOR) {
+            npc.humanRole != NPC::HumanRole::WARRIOR &&
+            npc.humanRole != NPC::HumanRole::CAPTAIN) {
             continue;
         }
 
@@ -559,28 +627,18 @@ void World::Update(float dt) {
         }
     }
 
-    // -------- cleanup bandits outside map --------
+    // -------- cleanup dead bandits / dead npc --------
     npcs.erase(
             std::remove_if(npcs.begin(), npcs.end(),
-                           [&](const NPC &n) {
-                               return n.humanRole == NPC::HumanRole::BANDIT &&
-                                      (n.pos.x < -100 || n.pos.y < -100 ||
-                                       n.pos.x > worldW + 100 || n.pos.y > worldH + 100);
-                           }),
-            npcs.end()
-    );
-    npcs.erase(
-            std::remove_if(npcs.begin(), npcs.end(),
-                           [](const NPC &n) { return !n.alive; }),
+                           [](const NPC& n) { return !n.alive; }),
             npcs.end()
     );
 
-
-    for (auto &s: settlements) {
+    for (auto& s : settlements) {
         if (!s.alive) continue;
 
         bool anyoneLeft = false;
-        for (const auto &npc: npcs) {
+        for (const auto& npc : npcs) {
             if (!npc.alive) continue;
             if (npc.settlementId == (&s - &settlements[0]) &&
                 npc.humanRole != NPC::HumanRole::BANDIT) {
@@ -708,17 +766,18 @@ void World::Draw() const {
                 loaded = npcTexBanditLoaded[v];
                 break;
             case NPC::HumanRole::CAPTAIN:
-                tex = &npcTexCaptain;
-                loaded = npcTexCaptainLoaded;
+                tex = &npcTexCaptain[v];
+                loaded = npcTexCaptainLoaded[v];
                 break;
             default:
                 break;
         }
-        float mult = 1.0f; // общий множитель
-        if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f; // жители чуть больше
-        if (npc.humanRole == NPC::HumanRole::BANDIT)  mult = 1.05f; // чуть крупнее (или 1.0f)
+        float mult = 1.0f;
+        if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f;
+        if (npc.humanRole == NPC::HumanRole::BANDIT)   mult = 1.05f;
+        if (npc.humanRole == NPC::HumanRole::CAPTAIN)  mult = 1.0f; // такой же размер, как у остальных боевых NPC
 
-        // базовый размер на карте: 2 клетки (как ты хотел раньше)
+        // базовый размер на карте: 2 клетки
         float w = (float)CELL_SIZE * 2.0f * mult;
         float h = (float)CELL_SIZE * 2.0f * mult;
 
@@ -756,6 +815,10 @@ void World::Draw() const {
 
         // НЕ ТИНТУЕМ спрайт (иначе можно получить "пропал" из-за альфы/смешивания)
         DrawTexturePro(*tex, src, dst, Vector2{0,0}, 0.0f, WHITE);
+        if (npc.humanRole == NPC::HumanRole::CAPTAIN && npc.id == selectedCaptainId) {
+            DrawCircleLines((int)npc.pos.x, (int)npc.pos.y, CELL_SIZE * 1.3f, YELLOW);
+            DrawCircleLines((int)npc.pos.x, (int)npc.pos.y, CELL_SIZE * 1.3f + 1.0f, BLACK);
+        }
 
         // --- обозначение поселения: плотный пиксельный ромбик над головой ---
         if (npc.settlementId != -1) {
@@ -765,7 +828,7 @@ void World::Draw() const {
             // позиция над головой: top спрайта = npc.pos.y - h
             Vector2 c = {
                     (float)((int)npc.pos.x),
-                    (float)((int)(npc.pos.y - h - 6.0f))  // чуть выше; подстрой 4..8
+                    (float)((int)(npc.pos.y - h - 8.0f))  // чуть выше; подстрой 4..8
             };
 
             const int r = 3; // размер ромбика

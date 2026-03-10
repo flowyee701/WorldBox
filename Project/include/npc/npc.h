@@ -1,5 +1,5 @@
 #pragma once
-#include "raylib.h"
+#include <raylib.h>
 #include <cstdint>
 
 struct NPC {
@@ -69,6 +69,24 @@ struct NPC {
     int squadId = -1;                 // для воинов (отряд)
 
     // -------------------------------------------------
+    // Stable identity (for squads / selection)
+    // -------------------------------------------------
+    uint32_t id = 0;                  // 0 = invalid, valid ids start from 1
+
+    // -------------------------------------------------
+    // Captain squad linking (for WARRIOR followers)
+    // -------------------------------------------------
+    uint32_t leaderCaptainId = 0;     // 0 = no leader
+    int formationSlot = -1;           // 0..14 for squad members
+
+    // -------------------------------------------------
+    // Captain player commands
+    // -------------------------------------------------
+    bool manualControl = false;       // true if player issued move
+    bool hasMoveTarget = false;
+    Vector2 moveTargetPx{0, 0};
+
+    // -------------------------------------------------
     // Bandit group
     // -------------------------------------------------
     int banditGroupId = -1;
@@ -79,4 +97,16 @@ struct NPC {
     Vector2 roamTarget = {0.0f, 0.0f};
     bool hasRoamTarget = false;
     float restTimer = 0.0f;
+    // -------------------------------------------------
+    // Captain control (player / auto)
+    // -------------------------------------------------
+    bool captainAutoMode = true;      // true = реагирует на угрозу (авто), false = слушает только игрока
+    bool captainHasMoveOrder = false; // активен ли приказ движения от игрока
+    Vector2 captainMoveTarget{0, 0};  // куда идти по приказу
+    // -------------------------------------------------
+    // Captain: attack order (player designated target/group)
+    // -------------------------------------------------
+    bool captainHasAttackOrder = false;
+    int  captainAttackGroupId = -1;     // banditGroupId
+    uint32_t captainAttackTargetId = 0; // optional: specific bandit id (can die)
 };
