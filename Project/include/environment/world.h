@@ -65,6 +65,7 @@ public:
 
     NPC* FindNpcById(uint32_t id);
     const NPC* FindNpcById(uint32_t id) const;
+    void BeginNpcDeath(NPC& npc);
 
     void IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx);
 
@@ -91,6 +92,3 @@ inline float RandomFloat(float min, float max) {
     return min + (float)GetRandomValue(0, 10000) / 10000.0f * (max - min);
 
 };
-
-
-

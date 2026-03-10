@@ -109,4 +109,11 @@ struct NPC {
     bool captainHasAttackOrder = false;
     int  captainAttackGroupId = -1;     // banditGroupId
     uint32_t captainAttackTargetId = 0; // optional: specific bandit id (can die)
+
+    // -------------------------------------------------
+    // Death animation state
+    // -------------------------------------------------
+    bool isDying = false;
+    float deathTimer = 0.0f;
+    float deathDuration = 0.65f;
 };

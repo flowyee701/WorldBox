@@ -162,7 +162,7 @@ static int FindThreatBanditNearSettlement(World& world, const Settlement& s, Vec
     return best;
 }
 
-static void TryMeleeAttack(NPC& attacker, NPC& target, float dt, float cooldownSeconds) {
+static void TryMeleeAttack(World& world, NPC& attacker, NPC& target, float dt, float cooldownSeconds) {
     attacker.attackCooldown -= dt;
     if (attacker.attackCooldown > 0.0f) return;
 
@@ -171,7 +171,7 @@ static void TryMeleeAttack(NPC& attacker, NPC& target, float dt, float cooldownS
 
     if (target.hp <= 0.0f) {
         target.hp = 0.0f;
-        target.alive = false;
+        world.BeginNpcDeath(target);
     }
 }
 
@@ -249,7 +249,7 @@ static bool ExecuteAttackOrder(World& world, NPC& captain, float dt, int groupId
         MoveTowards(captain, b.pos, dt, 1.0f);
     } else {
         captain.vel = {0, 0};
-        TryMeleeAttack(captain, b, dt, 0.75f);
+        TryMeleeAttack(world, captain, b, dt, 0.75f);
     }
 
     return true;
@@ -303,7 +303,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
 
         int nearBandit = FindNearestBanditInRange(world, npc.pos, 24.0f);
         if (nearBandit != -1) {
-            TryMeleeAttack(npc, world.npcs[nearBandit], dt, 0.75f);
+            TryMeleeAttack(world, npc, world.npcs[nearBandit], dt, 0.75f);
         }
 
         return;

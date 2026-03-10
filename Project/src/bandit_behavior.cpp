@@ -157,11 +157,11 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
                 npc.attackCooldown = 1.00f;
 
                 if (other.hp <= 0.0f) {
-                    other.alive = false;
+                    world.BeginNpcDeath(other);
                 }
             }
             if (other.hp <= 0.0f) {
-                other.alive = false;
+                world.BeginNpcDeath(other);
             }
         }
     }
