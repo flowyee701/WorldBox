@@ -58,6 +58,12 @@ struct NPC {
     // -------------------------------------------------
     float attackCooldown = 0.0f;
 
+    // short melee attack animation
+    bool isAttacking = false;
+    float attackAnimTimer = 0.0f;
+    float attackAnimDuration = 0.16f;
+    Vector2 attackAnimDir{0.0f, 1.0f};
+
     // -------------------------------------------------
     // Formation / squad (WARRIOR)
     // -------------------------------------------------

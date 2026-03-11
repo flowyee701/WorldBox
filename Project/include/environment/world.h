@@ -56,6 +56,10 @@ public:
     float fireAnimT = 0.0f;
     float fireAnimSpeed = 0.10f; // 0.10 = 10 кадров/сек (можно 0.12..0.18)
 
+    // ===== Barracks =====
+    Texture2D barracksTex{};
+    bool barracksTexLoaded = false;
+
     // -------------------------------------------------
     // NPC ids & captain selection
     // -------------------------------------------------
@@ -66,12 +70,17 @@ public:
     NPC* FindNpcById(uint32_t id);
     const NPC* FindNpcById(uint32_t id) const;
     void BeginNpcDeath(NPC& npc);
+    void BeginNpcAttack(NPC& npc, Vector2 targetPos);
 
     void IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx);
 
     void LoadFireSprites();
     void UnloadFireSprites();
     void UpdateCampfires(); // пересчёт позиций костров по центру поселений
+    void LoadBarracksSprite();
+    void UnloadBarracksSprite();
+    void UpdateBarracks();
+    void UpdateBarracksProduction(float dt);
 
 
     void Init();

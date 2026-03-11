@@ -83,6 +83,88 @@ static Rectangle ZoneToPxRect(const Rectangle &z) {
     };
 }
 
+static float Dist2World(Vector2 a, Vector2 b) {
+    float dx = a.x - b.x;
+    float dy = a.y - b.y;
+    return dx * dx + dy * dy;
+}
+
+static Vector2 TileIdToCenterPx(const World& world, int tileId) {
+    int cx = tileId % world.cols;
+    int cy = tileId / world.cols;
+    return {
+            (cx + 0.5f) * CELL_SIZE,
+            (cy + 0.5f) * CELL_SIZE
+    };
+}
+
+static Vector2 PickRandomSettlementTileFarFrom(const World& world,
+                                               const Settlement& s,
+                                               Vector2 avoidPx,
+                                               float minDistPx)
+{
+    if (s.tiles.empty()) return s.centerPx;
+
+    std::vector<int> preferred;
+    std::vector<int> fallback;
+    preferred.reserve(s.tiles.size());
+    fallback.reserve(s.tiles.size());
+
+    float minD2 = minDistPx * minDistPx;
+
+    for (int tile : s.tiles) {
+        Vector2 p = TileIdToCenterPx(world, tile);
+        fallback.push_back(tile);
+
+        if (Dist2World(p, avoidPx) >= minD2) {
+            preferred.push_back(tile);
+        }
+    }
+
+    const std::vector<int>& pool = !preferred.empty() ? preferred : fallback;
+    int pickIndex = GetRandomValue(0, (int)pool.size() - 1);
+    return TileIdToCenterPx(world, pool[pickIndex]);
+}
+
+static void SpawnProducedWarrior(World& world, int settlementId, Vector2 pos) {
+    NPC npc;
+    npc.id = world.nextNpcId++;
+    npc.type = NPC::Type::HUMAN;
+    npc.humanRole = NPC::HumanRole::WARRIOR;
+    npc.skinId = (uint16_t)GetRandomValue(0, World::NPC_VARIANTS - 1);
+    npc.pos = pos;
+    npc.vel = {0,0};
+    npc.speed = 35.0f;
+    npc.hp = 200.0f;
+    npc.damage = 18.0f;
+    npc.settlementId = settlementId;
+    npc.alive = true;
+    world.npcs.push_back(npc);
+}
+
+static void SpawnProducedCaptain(World& world, int settlementId, Vector2 pos) {
+    NPC npc;
+    npc.id = world.nextNpcId++;
+    npc.type = NPC::Type::HUMAN;
+    npc.humanRole = NPC::HumanRole::CAPTAIN;
+    npc.warriorRank = NPC::WarriorRank::CAPTAIN;
+    npc.isCaptain = true;
+    npc.skinId = (uint16_t)GetRandomValue(0, World::NPC_VARIANTS - 1);
+    npc.pos = pos;
+    npc.vel = {0, 0};
+    npc.speed = 35.0f;
+    npc.hp = 260.0f;
+    npc.damage = 22.0f;
+    npc.captainAutoMode = true;
+    npc.captainHasMoveOrder = false;
+    npc.captainHasAttackOrder = false;
+    npc.captainAttackGroupId = -1;
+    npc.captainAttackTargetId = 0;
+    npc.settlementId = settlementId;
+    npc.alive = true;
+    world.npcs.push_back(npc);
+}
+
 
 // Ищем файл в нескольких местах относительно Working Directory
 static std::string FindAssetPath(const char* relativePath)
@@ -199,6 +281,36 @@ void World::UnloadFireSprites()
     }
 }
 
+void World::LoadBarracksSprite()
+{
+    std::string p = FindAssetPath("assets/barracks/barracks_0.png");
+    if (p.empty()) {
+        TraceLog(LOG_WARNING, "BARRACKS missing: assets/barracks/barracks_0.png (WD=%s)", GetWorkingDirectory());
+        barracksTexLoaded = false;
+        return;
+    }
+
+    barracksTex = LoadTexture(p.c_str());
+    if (barracksTex.id == 0) {
+        TraceLog(LOG_ERROR, "Failed to LoadTexture barracks: %s", p.c_str());
+        barracksTexLoaded = false;
+        return;
+    }
+
+    SetTextureFilter(barracksTex, TEXTURE_FILTER_POINT);
+    barracksTexLoaded = true;
+
+    TraceLog(LOG_INFO, "Loaded barracks: %s", p.c_str());
+}
+
+void World::UnloadBarracksSprite()
+{
+    if (barracksTexLoaded) {
+        UnloadTexture(barracksTex);
+        barracksTexLoaded = false;
+    }
+}
+
 void World::UpdateCampfires()
 {
     for (auto& s : settlements) {
@@ -212,6 +324,49 @@ void World::UpdateCampfires()
         }
 
         s.campfirePosPx = c;
+    }
+}
+
+void World::UpdateBarracks()
+{
+    for (auto& s : settlements) {
+        if (!s.alive) continue;
+        if (s.hasBarracks) continue;
+        if (s.sourceSettlementCount < 3) continue;
+
+        Vector2 avoid = s.campfirePosPx;
+        if (avoid.x == 0.0f && avoid.y == 0.0f) {
+            avoid = s.centerPx;
+        }
+
+        s.barracksPosPx = PickRandomSettlementTileFarFrom(*this, s, avoid, CELL_SIZE * 7.0f);
+        s.hasBarracks = true;
+        s.barracksWarriorTimer = 10.0f;
+        s.barracksCaptainTimer = 150.0f;
+    }
+}
+
+void World::UpdateBarracksProduction(float dt)
+{
+    for (int i = 0; i < (int)settlements.size(); i++) {
+        Settlement& s = settlements[i];
+        if (!s.alive) continue;
+        if (!s.hasBarracks) continue;
+
+        s.barracksWarriorTimer -= dt;
+        s.barracksCaptainTimer -= dt;
+
+        while (s.barracksWarriorTimer <= 0.0f) {
+            Vector2 spawnPos = { s.barracksPosPx.x, s.barracksPosPx.y + CELL_SIZE * 1.2f };
+            SpawnProducedWarrior(*this, i, spawnPos);
+            s.barracksWarriorTimer += 10.0f;
+        }
+
+        while (s.barracksCaptainTimer <= 0.0f) {
+            Vector2 spawnPos = { s.barracksPosPx.x, s.barracksPosPx.y + CELL_SIZE * 1.2f };
+            SpawnProducedCaptain(*this, i, spawnPos);
+            s.barracksCaptainTimer += 150.0f;
+        }
     }
 }
 
@@ -296,7 +451,18 @@ void World::MergeSettlementsIfNeeded() {
                 if (npc.settlementId == j)
                     npc.settlementId = i;
 
+            settlements[i].sourceSettlementCount += settlements[j].sourceSettlementCount;
+
+            if (!settlements[i].hasBarracks && settlements[j].hasBarracks) {
+                settlements[i].hasBarracks = true;
+                settlements[i].barracksPosPx = settlements[j].barracksPosPx;
+                settlements[i].barracksWarriorTimer = settlements[j].barracksWarriorTimer;
+                settlements[i].barracksCaptainTimer = settlements[j].barracksCaptainTimer;
+            }
+
             settlements[j].tiles.clear();
+            settlements[j].hasBarracks = false;
+            settlements[j].barracksPosPx = {0.0f, 0.0f};
             settlements[j].alive = false;
 
             settlements[i].centerPx = ComputeSettlementCenterPx(settlements[i]);
@@ -368,6 +534,11 @@ void World::SpawnCivilian(Vector2 pos) {
         if (nearbyFreeCivs.size() >= 2) {
             Settlement s;
             s.alive = true;
+            s.sourceSettlementCount = 1;
+            s.hasBarracks = false;
+            s.barracksPosPx = {0.0f, 0.0f};
+            s.barracksWarriorTimer = 10.0f;
+            s.barracksCaptainTimer = 150.0f;
 
             int cx = (int)(pos.x / CELL_SIZE);
             int cy = (int)(pos.y / CELL_SIZE);
@@ -479,6 +650,24 @@ const NPC* World::FindNpcById(uint32_t id) const {
     return nullptr;
 }
 
+void World::BeginNpcAttack(NPC& npc, Vector2 targetPos) {
+    Vector2 dir = Vector2Subtract(targetPos, npc.pos);
+
+    if (Vector2Length(dir) <= 0.001f) {
+        if (Vector2Length(npc.vel) > 0.001f) {
+            dir = Vector2Normalize(npc.vel);
+        } else {
+            dir = {0.0f, 1.0f};
+        }
+    } else {
+        dir = Vector2Normalize(dir);
+    }
+
+    npc.isAttacking = true;
+    npc.attackAnimTimer = npc.attackAnimDuration;
+    npc.attackAnimDir = dir;
+}
+
 void World::BeginNpcDeath(NPC& npc) {
     if (!npc.alive || npc.isDying) return;
 
@@ -562,6 +751,7 @@ void World::Init()
     LoadNpcSprites(); // <-- ВАЖНО
 
     LoadFireSprites();
+    LoadBarracksSprite();
     UpdateCampfires();
     settlements.clear();
     npcs.clear();
@@ -572,6 +762,7 @@ void World::Shutdown()
 {
     UnloadNpcSprites();
     UnloadFireSprites();
+    UnloadBarracksSprite();
 }
 
 
@@ -633,6 +824,16 @@ void World::Update(float dt) {
             continue;
         }
 
+        if (npc.attackAnimTimer > 0.0f) {
+            npc.attackAnimTimer -= dt;
+            if (npc.attackAnimTimer <= 0.0f) {
+                npc.attackAnimTimer = 0.0f;
+                npc.isAttacking = false;
+            }
+        } else {
+            npc.isAttacking = false;
+        }
+
         if (npc.type == NPC::Type::HUMAN && npc.alive) {
             HumanBehavior::Update(*this, npc, dt);
         }
@@ -650,6 +851,8 @@ void World::Update(float dt) {
     }
 
     UpdateCampfires();
+    UpdateBarracks();
+    UpdateBarracksProduction(dt);
 
     // --- auto-bind wild HUMAN NPC to first settlement they enter ---
     for (auto& npc : npcs) {
@@ -699,6 +902,8 @@ void World::Update(float dt) {
     }
 
     MergeSettlementsIfNeeded();
+    UpdateCampfires();
+    UpdateBarracks();
 }
 
 // ------------------------------------------------------------
@@ -784,6 +989,37 @@ void World::Draw() const {
         }
     }
 
+    // ---- BARRACKS ----
+    for (const auto& s : settlements) {
+        if (!s.alive) continue;
+        if (!s.hasBarracks) continue;
+
+        float w = (float)CELL_SIZE * 8.0f;
+        float h = (float)CELL_SIZE * 8.0f;
+
+        if (barracksTexLoaded && barracksTex.id != 0) {
+            Rectangle src{0,0,(float)barracksTex.width,(float)barracksTex.height};
+
+            Rectangle dst{
+                    floorf(s.barracksPosPx.x - w * 0.5f),
+                    floorf(s.barracksPosPx.y - h * 0.90f),
+                    w,
+                    h
+            };
+            DrawTexturePro(barracksTex, src, dst, Vector2{0,0}, 0.0f, WHITE);
+        } else {
+            Rectangle base{
+                    floorf(s.barracksPosPx.x - w*0.5f),
+                    floorf(s.barracksPosPx.y - h*0.5f),
+                    w, h
+            };
+            DrawRectangleRec(base, Color{110, 80, 45, 255});
+            DrawRectangleLinesEx(base, 1.0f, BLACK);
+            DrawRectangle((int)(base.x + w * 0.30f), (int)(base.y + h * 0.55f),
+                          (int)(w * 0.40f), (int)(h * 0.25f), Color{70, 45, 20, 255});
+        }
+    }
+
 
     // =====================
 // NPCs (fixed size by CELL_SIZE)
@@ -838,18 +1074,28 @@ void World::Draw() const {
         if (!tex || !loaded || tex->id == 0) {
             float size = CELL_SIZE * 0.4f;
             Color c = GetSafeSettlementColor(*this, npc.settlementId);
+            Vector2 drawPos = npc.pos;
 
             if (npc.isDying) {
                 float t = Clamp(npc.deathTimer / npc.deathDuration, 0.0f, 1.0f);
                 c.a = (unsigned char)(255.0f * (1.0f - 0.70f * t));
             }
 
+            if (npc.attackAnimTimer > 0.0f && !npc.isDying) {
+                float t = 1.0f - (npc.attackAnimTimer / npc.attackAnimDuration);
+                t = Clamp(t, 0.0f, 1.0f);
+                float pulse = sinf(t * PI);
+                float push = 6.0f * pulse;
+                drawPos.x += npc.attackAnimDir.x * push;
+                drawPos.y += npc.attackAnimDir.y * push;
+            }
+
             switch (npc.humanRole) {
                 case NPC::HumanRole::CIVILIAN:
-                    DrawCircleV(npc.pos, size, c);
+                    DrawCircleV(drawPos, size, c);
                     break;
                 case NPC::HumanRole::WARRIOR:
-                    DrawRectangle(npc.pos.x-size, npc.pos.y-size, size*2, size*2, c);
+                    DrawRectangle(drawPos.x-size, drawPos.y-size, size*2, size*2, c);
                     break;
                 case NPC::HumanRole::BANDIT: {
                     Color banditCol = Color{160,80,200,255};
@@ -858,9 +1104,9 @@ void World::Draw() const {
                         banditCol.a = (unsigned char)(255.0f * (1.0f - 0.70f * t));
                     }
                     DrawTriangle(
-                            {npc.pos.x, npc.pos.y + CELL_SIZE*0.7f},
-                            {npc.pos.x + CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
-                            {npc.pos.x - CELL_SIZE*0.7f, npc.pos.y - CELL_SIZE*0.7f},
+                            {drawPos.x, drawPos.y + CELL_SIZE*0.7f},
+                            {drawPos.x + CELL_SIZE*0.7f, drawPos.y - CELL_SIZE*0.7f},
+                            {drawPos.x - CELL_SIZE*0.7f, drawPos.y - CELL_SIZE*0.7f},
                             banditCol);
                     break;
                 }
@@ -884,6 +1130,20 @@ void World::Draw() const {
             drawDst.height = h * (1.0f - 0.55f * t);
 
             tint.a = (unsigned char)(255.0f * (1.0f - 0.70f * t));
+        }
+
+        if (npc.attackAnimTimer > 0.0f && !npc.isDying) {
+            float t = 1.0f - (npc.attackAnimTimer / npc.attackAnimDuration);
+            t = Clamp(t, 0.0f, 1.0f);
+            float pulse = sinf(t * PI);
+
+            float push = 6.0f * pulse;
+            drawDst.x += npc.attackAnimDir.x * push;
+            drawDst.y += npc.attackAnimDir.y * push;
+
+            drawDst.x -= (drawDst.width * 0.04f * pulse);
+            drawDst.width *= (1.0f + 0.08f * pulse);
+            drawDst.height *= (1.0f - 0.06f * pulse);
         }
 
         DrawTexturePro(*tex, src, drawDst, Vector2{0,0}, 0.0f, tint);
