@@ -5,6 +5,8 @@ add_library(worldbox_core
         warrior_behavior.cpp
         bandit_behavior.cpp
         captain_behavior.cpp
+        Animal.cpp        # ДОБАВИТЬ ЭТО
+        Plant.cpp # ДОБАВИТЬ ЭТО
 )
 
 target_include_directories(worldbox_core PUBLIC

@@ -7,6 +7,8 @@
 #include <cfloat>
 #include <iostream>
 #include <string>
+#include "npc/Animal.h"
+#include "environment/Plant.h"
 // ------------------------------------------------------------
 // Helpers
 static Vector2 RandomOutsideSpawn(int w, int h) {
@@ -494,6 +496,10 @@ void World::Init()
     settlements.clear();
     npcs.clear();
 
+
+    plants.clear();
+    animals.clear();
+
     banditSpawnTimer = 0.0f;
     nextBanditGroupId = 1;
 
@@ -505,15 +511,14 @@ void World::Init()
     npcs.clear();
     nextNpcId = 1;
     selectedCaptainId = 0;
+
+    GenerateNature(40, 15);
 }
 void World::Shutdown()
 {
     UnloadNpcSprites();
     UnloadFireSprites();
 }
-
-
-
 // ------------------------------------------------------------
 // Update
 // ------------------------------------------------------------
@@ -631,8 +636,35 @@ void World::Update(float dt) {
             s.alive = false;
         }
     }
+    for (auto& plant : plants) {
+        plant.Update(dt);
+    }
+    for (auto& animal : animals) {
+        animal.Update(dt);
+    }
 
     MergeSettlementsIfNeeded();
+}
+
+void World::SpawnAnimal(Vector2 pos) {
+    animals.push_back(Animal(pos));
+}
+
+void World::SpawnPlant(Vector2 pos) {
+    plants.push_back(Plant(pos));
+}
+
+void World::GenerateNature(int plantCount, int animalCount) {
+    // Раскидываем растения по карте
+    for (int i = 0; i < plantCount; i++) {
+        Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
+        SpawnPlant(pos);
+    }
+    // Раскидываем животных по карте
+    for (int i = 0; i < animalCount; i++) {
+        Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
+        SpawnAnimal(pos);
+    }
 }
 
 // ------------------------------------------------------------
@@ -688,6 +720,7 @@ static void DrawDiamondOutline(Vector2 center, int r, Color col)
 }
 
 void World::Draw() const {
+
     // grass
     for (int y = 0; y < rows; y++) {
         for (int x = 0; x < cols; x++) {
@@ -696,6 +729,12 @@ void World::Draw() const {
                          : Color{55, 110, 55, 255};
             DrawRectangle(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE, base);
         }
+    }
+    for (const auto& plant : plants) {
+        plant.Draw();
+    }
+    for (const auto& animal : animals) {
+        animal.Draw();
     }
 
     // settlements

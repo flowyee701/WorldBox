@@ -7,6 +7,9 @@
 #include "npc/npc.h"
 #include "settlement.h"
 
+// --- ДОБАВЛЕНО: Подключение твоих классов ---
+#include "npc/Animal.h"
+#include "environment/Plant.h"
 
 struct Settlement;
 
@@ -19,6 +22,10 @@ public:
 
     std::vector<Settlement> settlements;
     std::vector<NPC> npcs;
+
+    // --- ДОБАВЛЕНО: Списки для хранения растений и животных ---
+    std::vector<Animal> animals;
+    std::vector<Plant> plants;
 
     static constexpr int NPC_VARIANTS = 3;
 
@@ -84,12 +91,14 @@ public:
     void SpawnCivilian(Vector2 pos);
     void SpawnWarrior(Vector2 pos);
 
+    // --- ДОБАВЛЕНО: Методы для спавна природы ---
+    void SpawnAnimal(Vector2 pos);
+    void SpawnPlant(Vector2 pos);
+    void GenerateNature(int plantCount, int animalCount);
+
     void Shutdown();
 };
+
 inline float RandomFloat(float min, float max) {
     return min + (float)GetRandomValue(0, 10000) / 10000.0f * (max - min);
-
-};
-
-
-
+}
