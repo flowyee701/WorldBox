@@ -537,7 +537,7 @@ void World::Init()
     nextNpcId = 1;
     selectedCaptainId = 0;
 
-    GenerateNature(40, 50);
+    GenerateNature(40, 15);
 }
 void World::Shutdown()
 {
