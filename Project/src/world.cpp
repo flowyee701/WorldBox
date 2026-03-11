@@ -143,6 +143,26 @@ void World::LoadNpcSprites()
     loadOne(npcTexCaptain, npcTexCaptainLoaded, "assets/npc/captain/captain_1.png");
 
     npcSpritesLoaded = true;
+
+    std::string horsePath = FindAssetPath("assets/npc/animal.png");
+    if (!horsePath.empty()) {
+        Animal::texture = LoadTexture(horsePath.c_str());
+
+        // ПРОВЕРКА: Загрузилась ли текстура в видеопамять?
+        if (Animal::texture.id > 0) {
+            SetTextureFilter(Animal::texture, TEXTURE_FILTER_POINT);
+            Animal::textureLoaded = true;
+            TraceLog(LOG_INFO, ">>> SUCCESS: Horse texture loaded! (%dx%d)", Animal::texture.width, Animal::texture.height);
+        } else {
+            TraceLog(LOG_ERROR, ">>> ERROR: Failed to LoadTexture from path: %s", horsePath.c_str());
+            Animal::textureLoaded = false;
+        }
+    } else {
+        TraceLog(LOG_ERROR, ">>> ERROR: Could not find asset path for assets/npc/animal.png");
+        Animal::textureLoaded = false;
+    }
+
+    npcSpritesLoaded = true;
 }
 
 void World::UnloadNpcSprites()
@@ -154,6 +174,11 @@ void World::UnloadNpcSprites()
         if (npcTexCaptainLoaded) { UnloadTexture(npcTexCaptain); npcTexCaptainLoaded = false; }
     }
     npcSpritesLoaded = false;
+
+    if (Animal::textureLoaded) {
+        UnloadTexture(Animal::texture);
+        Animal::textureLoaded = false;
+    }
 }
 
 void World::LoadFireSprites()
@@ -512,7 +537,7 @@ void World::Init()
     nextNpcId = 1;
     selectedCaptainId = 0;
 
-    GenerateNature(40, 15);
+    GenerateNature(40, 50);
 }
 void World::Shutdown()
 {

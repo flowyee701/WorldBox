@@ -12,6 +12,8 @@ public:
     Animal(Vector2 pos);
     void Update(float deltaTime);
     void Draw() const;
+    static Texture2D texture;
+    static bool textureLoaded;
 private:
     void Wander(float deltaTime);
 };
