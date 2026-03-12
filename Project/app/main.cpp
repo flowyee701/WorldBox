@@ -12,7 +12,7 @@ enum class AppState
 
 enum class SpawnMode { CIVILIAN, WARRIOR };
 enum class WarriorRank { WARRIOR, CAPTAIN };
-enum class ToolMode { NONE, KILL };
+enum class ToolMode { NONE, KILL, WAR };
 
 static void ApplyBorderlessFullscreen() {
     int monitor = GetCurrentMonitor();
@@ -91,6 +91,19 @@ static int PickAnyNpcIndex(const World& world, Vector2 mouseWorld, float radius)
     return best;
 }
 
+static int PickSettlementIndexAtWorldPos(const World& world, Vector2 mouseWorld)
+{
+    for (int i = 0; i < (int)world.settlements.size(); i++) {
+        const Settlement& s = world.settlements[i];
+        if (!s.alive) continue;
+
+        if (CheckCollisionPointRec(mouseWorld, s.boundsPx)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static const Texture2D* GetCurrentModeIcon(const World& world,
                                            SpawnMode mode,
                                            WarriorRank warriorRank,
@@ -103,6 +116,11 @@ static const Texture2D* GetCurrentModeIcon(const World& world,
     if (toolsOpen && toolMode == ToolMode::KILL) {
         loaded = world.npcTexBanditLoaded[0];
         return &world.npcTexBandit[0];
+    }
+
+    if (toolsOpen && toolMode == ToolMode::WAR) {
+        loaded = world.npcTexCaptainLoaded[0];
+        return &world.npcTexCaptain[0];
     }
 
     if (mode == SpawnMode::CIVILIAN) {
@@ -140,6 +158,7 @@ int main() {
     WarriorRank warriorRank = WarriorRank::WARRIOR;
     bool toolsOpen = false;
     ToolMode toolMode = ToolMode::NONE;
+    int pendingWarSettlementA = -1;
     Vector2 lastMouse = GetMousePosition();
 
     while (!WindowShouldClose()) {
@@ -236,6 +255,7 @@ int main() {
                 if (IsKeyPressed(KEY_ZERO)) {
                     toolsOpen = !toolsOpen;
                     toolMode = toolsOpen ? ToolMode::KILL : ToolMode::NONE;
+                    pendingWarSettlementA = -1;
                 }
 
                 if (!toolsOpen) {
@@ -256,6 +276,11 @@ int main() {
                 } else {
                     if (IsKeyPressed(KEY_ONE)) {
                         toolMode = ToolMode::KILL;
+                        pendingWarSettlementA = -1;
+                    }
+                    if (IsKeyPressed(KEY_TWO)) {
+                        toolMode = ToolMode::WAR;
+                        pendingWarSettlementA = -1;
                     }
                 }
 
@@ -335,6 +360,17 @@ int main() {
                                     world.BeginNpcDeath(world.npcs[clickedNpc]);
                                 }
                             }
+                            else if (toolsOpen && toolMode == ToolMode::WAR) {
+                                int clickedSettlement = PickSettlementIndexAtWorldPos(world, mouseWorld);
+                                if (clickedSettlement != -1) {
+                                    if (pendingWarSettlementA == -1) {
+                                        pendingWarSettlementA = clickedSettlement;
+                                    } else if (pendingWarSettlementA != clickedSettlement) {
+                                        world.StartSettlementWar(pendingWarSettlementA, clickedSettlement);
+                                        pendingWarSettlementA = -1;
+                                    }
+                                }
+                            }
                             else if (mode == SpawnMode::CIVILIAN) {
                                 world.SpawnCivilian(mouseWorld);
                             } else if (mode == SpawnMode::WARRIOR) {
@@ -394,8 +430,26 @@ int main() {
             uiY += spacing;
 
             if (toolsOpen) {
-                DrawText("Tool: 1 KILL NPC", uiX, uiY, 20, Color{255, 170, 170, 255});
+                const char* toolStr =
+                        (toolMode == ToolMode::KILL) ? "Tool: 1 KILL NPC" :
+                        (toolMode == ToolMode::WAR)  ? "Tool: 2 WAR" :
+                                                       "Tool: NONE";
+                Color toolColor =
+                        (toolMode == ToolMode::KILL) ? Color{255, 170, 170, 255} :
+                        (toolMode == ToolMode::WAR)  ? Color{255, 210, 120, 255} :
+                                                       RAYWHITE;
+
+                DrawText(toolStr, uiX, uiY, 20, toolColor);
                 uiY += spacing;
+
+                if (toolMode == ToolMode::WAR) {
+                    if (pendingWarSettlementA == -1) {
+                        DrawText("Select first settlement", uiX, uiY, 18, Color{255, 230, 180, 255});
+                    } else {
+                        DrawText("Select second settlement", uiX, uiY, 18, Color{255, 230, 180, 255});
+                    }
+                    uiY += spacing;
+                }
             }
             else if (mode == SpawnMode::WARRIOR) {
                 const char* rankStr =
@@ -409,7 +463,7 @@ int main() {
             const char* t1="Shift+LMB Captain: Select";
             const char* t2="Shift+LMB Ground: Move selected captain";
             const char* t3="Shift+LMB Bandit: Attack whole bandit group";
-            const char* t4="0: Tools | 1/2: Spawn modes | A: AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
+            const char* t4="0: Tools | Tools: 1 Kill, 2 War | A: AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
 
             DrawText(t1, uiX, uiY, 20, RAYWHITE); uiY += spacing;
             DrawText(t2, uiX, uiY, 20, RAYWHITE); uiY += spacing;

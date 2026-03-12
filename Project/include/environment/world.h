@@ -69,6 +69,9 @@ public:
 
     NPC* FindNpcById(uint32_t id);
     const NPC* FindNpcById(uint32_t id) const;
+    void StartSettlementWar(int attackerSettlementId, int targetSettlementId);
+    void StopSettlementWar(int settlementId);
+    bool IsSettlementAliveAndValid(int settlementId) const;
     void BeginNpcDeath(NPC& npc);
     void BeginNpcAttack(NPC& npc, Vector2 targetPos);
 
@@ -81,6 +84,11 @@ public:
     void UnloadBarracksSprite();
     void UpdateBarracks();
     void UpdateBarracksProduction(float dt);
+    void UpdateSettlementWars(float dt);
+    void UpdateSettlementWarAssignments();
+    void UpdateSettlementWarPreparation(float dt);
+    void UpdateSettlementDefense(float dt);
+    void RefreshSettlementWarSquads();
 
 
     void Init();

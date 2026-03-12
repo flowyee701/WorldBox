@@ -25,6 +25,19 @@ struct Settlement {
     float barracksWarriorTimer = 10.0f;
     float barracksCaptainTimer = 150.0f;
 
+    // settlement war state
+    bool warActive = false;
+    int warTargetSettlementId = -1;
+
+    bool attackWaveLaunched = false;
+    float warRecruitCooldown = 0.0f;
+    int warWaveSize = 0;
+
+    // war staging / squad preparation
+    int preparedSquadCount = 0;
+    bool offensiveWaveReady = false;
+    bool defensiveMobilization = false;
+
     // legacy — больше НЕ используем
     // std::vector<Rectangle> zones;
 };

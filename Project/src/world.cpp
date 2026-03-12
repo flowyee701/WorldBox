@@ -126,6 +126,183 @@ static Vector2 PickRandomSettlementTileFarFrom(const World& world,
     return TileIdToCenterPx(world, pool[pickIndex]);
 }
 
+static bool IsCombatHumanRole(NPC::HumanRole role) {
+    return role == NPC::HumanRole::WARRIOR || role == NPC::HumanRole::CAPTAIN;
+}
+
+static bool IsCombatNpc(const NPC& npc) {
+    return npc.humanRole == NPC::HumanRole::WARRIOR || npc.humanRole == NPC::HumanRole::CAPTAIN;
+}
+
+static bool IsCaptainNpc(const NPC& npc) {
+    return npc.humanRole == NPC::HumanRole::CAPTAIN;
+}
+
+static int CountAvailableSettlementCombatUnits(const World& world, int settlementId) {
+    int count = 0;
+    for (const auto& npc : world.npcs) {
+        if (!npc.alive) continue;
+        if (npc.isDying) continue;
+        if (npc.settlementId != settlementId) continue;
+        if (!IsCombatHumanRole(npc.humanRole)) continue;
+        count++;
+    }
+    return count;
+}
+
+static int CountAssignedWarriorsForCaptain(const World& world, int settlementId, uint32_t captainId) {
+    int count = 0;
+    for (const auto& npc : world.npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.settlementId != settlementId) continue;
+        if (npc.humanRole != NPC::HumanRole::WARRIOR) continue;
+        if (npc.warCaptainId == captainId) count++;
+    }
+    return count;
+}
+
+static int CountReadySquadsForSettlement(const World& world, int settlementId) {
+    int readySquads = 0;
+
+    for (const auto& npc : world.npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.settlementId != settlementId) continue;
+        if (npc.humanRole != NPC::HumanRole::CAPTAIN) continue;
+
+        int warriorCount = CountAssignedWarriorsForCaptain(world, settlementId, npc.id);
+
+        // valid offensive/defensive squad:
+        // 1 captain + at least 2 warriors
+        if (warriorCount >= 2) {
+            readySquads++;
+        }
+    }
+
+    return readySquads;
+}
+
+static uint32_t FindNearestAvailableCaptainId(World& world, int settlementId, Vector2 pos) {
+    float bestD2 = 1e30f;
+    uint32_t bestId = 0;
+
+    for (auto& npc : world.npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.settlementId != settlementId) continue;
+        if (npc.humanRole != NPC::HumanRole::CAPTAIN) continue;
+
+        int warriorCount = CountAssignedWarriorsForCaptain(world, settlementId, npc.id);
+        if (warriorCount >= 5) continue;
+
+        float dx = npc.pos.x - pos.x;
+        float dy = npc.pos.y - pos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 < bestD2) {
+            bestD2 = d2;
+            bestId = npc.id;
+        }
+    }
+
+    return bestId;
+}
+
+static bool IsEnemySettlementTroopNearSettlement(const World& world, int settlementId, float radiusPx) {
+    if (settlementId < 0 || settlementId >= (int)world.settlements.size()) return false;
+    const Settlement& s = world.settlements[settlementId];
+    if (!s.alive) return false;
+
+    float radius2 = radiusPx * radiusPx;
+
+    for (const auto& npc : world.npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (!IsCombatNpc(npc)) continue;
+        if (npc.settlementId == settlementId) continue;
+        if (!npc.warAssigned) continue;
+
+        float dx = npc.pos.x - s.centerPx.x;
+        float dy = npc.pos.y - s.centerPx.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 <= radius2) return true;
+    }
+
+    return false;
+}
+
+static int ComputeSettlementWaveSize(const World& world, int settlementId) {
+    int available = CountAvailableSettlementCombatUnits(world, settlementId);
+    int preferred = (int)floorf((float)available * 0.60f);
+    if (preferred < 4) preferred = 4;
+    if (preferred > 12) preferred = 12;
+    return preferred;
+}
+
+static int FindNearestEnemyNpcForSettlementWar(World& world, const NPC& attacker, int enemySettlementId, float maxDistPx) {
+    float bestD2 = maxDistPx * maxDistPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.id == attacker.id) continue;
+
+        // If a concrete enemy settlement is known, prefer it.
+        // For defenders, we may still need to attack any hostile troop nearby,
+        // so fallback search below is important.
+        if (enemySettlementId >= 0 && other.settlementId != enemySettlementId) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else if (other.humanRole == NPC::HumanRole::CIVILIAN) priority = 2;
+        else continue;
+
+        float dx = other.pos.x - attacker.pos.x;
+        float dy = other.pos.y - attacker.pos.y;
+        float d2 = dx*dx + dy*dy;
+
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static int FindNearestHostileTroopNearSettlement(World& world, int homeSettlementId, Vector2 homePos, float maxDistPx) {
+    float bestD2 = maxDistPx * maxDistPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.settlementId == homeSettlementId) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else if (other.humanRole == NPC::HumanRole::CIVILIAN) priority = 2;
+        else continue;
+
+        float dx = other.pos.x - homePos.x;
+        float dy = other.pos.y - homePos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
 static void SpawnProducedWarrior(World& world, int settlementId, Vector2 pos) {
     NPC npc;
     npc.id = world.nextNpcId++;
@@ -135,8 +312,8 @@ static void SpawnProducedWarrior(World& world, int settlementId, Vector2 pos) {
     npc.pos = pos;
     npc.vel = {0,0};
     npc.speed = 35.0f;
-    npc.hp = 200.0f;
-    npc.damage = 18.0f;
+    npc.hp = 180.0f;
+    npc.damage = 16.0f;
     npc.settlementId = settlementId;
     npc.alive = true;
     world.npcs.push_back(npc);
@@ -443,6 +620,10 @@ void World::MergeSettlementsIfNeeded() {
 
             if (!touching) continue;
 
+            if (settlements[j].warActive) {
+                StopSettlementWar(j);
+            }
+
             // объединяем j -> i
             for (int tile : settlements[j].tiles)
                 settlements[i].tiles.insert(tile);
@@ -584,8 +765,8 @@ void World::SpawnWarrior(Vector2 pos) {
     npc.pos = pos;
     npc.vel = {0,0};
     npc.speed = 35.0f; // скорость воина (и капитана тоже)
-    npc.hp = 200.0f;
-    npc.damage =18.0f;
+    npc.hp = 180.0f;
+    npc.damage =16.0f;
     npc.settlementId = -1;
 
     // 🔹 НОВОЕ: если клик внутри поселения — сразу привязываем
@@ -650,6 +831,430 @@ const NPC* World::FindNpcById(uint32_t id) const {
     return nullptr;
 }
 
+bool World::IsSettlementAliveAndValid(int settlementId) const
+{
+    return settlementId >= 0 &&
+           settlementId < (int)settlements.size() &&
+           settlements[settlementId].alive;
+}
+
+void World::StartSettlementWar(int attackerSettlementId, int targetSettlementId)
+{
+    if (attackerSettlementId == targetSettlementId) return;
+    if (!IsSettlementAliveAndValid(attackerSettlementId)) return;
+    if (!IsSettlementAliveAndValid(targetSettlementId)) return;
+
+    Settlement& a = settlements[attackerSettlementId];
+    Settlement& b = settlements[targetSettlementId];
+
+    a.warActive = true;
+    a.warTargetSettlementId = targetSettlementId;
+    a.attackWaveLaunched = false;
+    a.warRecruitCooldown = 0.0f;
+    a.warWaveSize = 0;
+    a.preparedSquadCount = 0;
+    a.offensiveWaveReady = false;
+    a.defensiveMobilization = false;
+
+    b.warActive = true;
+    b.warTargetSettlementId = attackerSettlementId;
+    b.attackWaveLaunched = false;
+    b.warRecruitCooldown = 0.0f;
+    b.warWaveSize = 0;
+    b.preparedSquadCount = 0;
+    b.offensiveWaveReady = false;
+    b.defensiveMobilization = false;
+}
+
+void World::StopSettlementWar(int settlementId)
+{
+    if (!IsSettlementAliveAndValid(settlementId)) return;
+
+    Settlement& s = settlements[settlementId];
+    int targetId = s.warTargetSettlementId;
+
+    s.warActive = false;
+    s.warTargetSettlementId = -1;
+    s.attackWaveLaunched = false;
+    s.warRecruitCooldown = 0.0f;
+    s.warWaveSize = 0;
+    s.preparedSquadCount = 0;
+    s.offensiveWaveReady = false;
+    s.defensiveMobilization = false;
+
+    for (auto& npc : npcs) {
+        if (npc.warFromSettlementId == settlementId || npc.warTargetSettlementId == settlementId) {
+            npc.warAssigned = false;
+            npc.warFromSettlementId = -1;
+            npc.warTargetSettlementId = -1;
+            npc.warMarching = false;
+            npc.warTargetPos = {0.0f, 0.0f};
+            npc.warCaptainId = 0;
+            npc.warSquadIndex = -1;
+            npc.warIsDefender = false;
+            npc.warReady = false;
+        }
+    }
+
+    if (IsSettlementAliveAndValid(targetId) && settlements[targetId].warTargetSettlementId == settlementId) {
+        settlements[targetId].warActive = false;
+        settlements[targetId].warTargetSettlementId = -1;
+        settlements[targetId].attackWaveLaunched = false;
+        settlements[targetId].warRecruitCooldown = 0.0f;
+        settlements[targetId].warWaveSize = 0;
+        settlements[targetId].preparedSquadCount = 0;
+        settlements[targetId].offensiveWaveReady = false;
+        settlements[targetId].defensiveMobilization = false;
+
+        for (auto& npc : npcs) {
+            if (npc.warFromSettlementId == targetId || npc.warTargetSettlementId == targetId) {
+                npc.warAssigned = false;
+                npc.warFromSettlementId = -1;
+                npc.warTargetSettlementId = -1;
+                npc.warMarching = false;
+                npc.warTargetPos = {0.0f, 0.0f};
+                npc.warCaptainId = 0;
+                npc.warSquadIndex = -1;
+                npc.warIsDefender = false;
+                npc.warReady = false;
+            }
+        }
+    }
+}
+
+void World::RefreshSettlementWarSquads()
+{
+    // Clear broken captain references
+    for (auto& npc : npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.humanRole != NPC::HumanRole::WARRIOR) continue;
+
+        if (npc.warCaptainId != 0) {
+            NPC* cap = FindNpcById(npc.warCaptainId);
+            if (!cap || cap->settlementId != npc.settlementId || cap->humanRole != NPC::HumanRole::CAPTAIN) {
+                npc.warCaptainId = 0;
+                npc.warSquadIndex = -1;
+                npc.warReady = false;
+            }
+        }
+    }
+
+    // Assign free warriors to nearest available captain inside same settlement
+    for (auto& npc : npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.humanRole != NPC::HumanRole::WARRIOR) continue;
+        if (npc.settlementId < 0) continue;
+        if (npc.warAssigned) continue; // do not rewire active marching/defending units
+        if (npc.warCaptainId != 0) continue;
+
+        uint32_t captainId = FindNearestAvailableCaptainId(*this, npc.settlementId, npc.pos);
+        if (captainId == 0) continue;
+
+        npc.warCaptainId = captainId;
+        npc.warReady = true;
+    }
+
+    // Reset squad indexes
+    for (auto& npc : npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.settlementId < 0) continue;
+        if (npc.humanRole == NPC::HumanRole::CAPTAIN || npc.humanRole == NPC::HumanRole::WARRIOR) {
+            npc.warSquadIndex = -1;
+        }
+    }
+
+    int nextSquadIndex = 0;
+    for (auto& captain : npcs) {
+        if (!captain.alive || captain.isDying) continue;
+        if (captain.humanRole != NPC::HumanRole::CAPTAIN) continue;
+        if (captain.settlementId < 0) continue;
+
+        int warriorCount = CountAssignedWarriorsForCaptain(*this, captain.settlementId, captain.id);
+        if (warriorCount >= 2) {
+            captain.warSquadIndex = nextSquadIndex++;
+
+            for (auto& warrior : npcs) {
+                if (!warrior.alive || warrior.isDying) continue;
+                if (warrior.settlementId != captain.settlementId) continue;
+                if (warrior.humanRole != NPC::HumanRole::WARRIOR) continue;
+                if (warrior.warCaptainId == captain.id) {
+                    warrior.warSquadIndex = captain.warSquadIndex;
+                    warrior.warReady = true;
+                }
+            }
+        }
+    }
+}
+
+void World::UpdateSettlementWarPreparation(float dt)
+{
+    (void)dt;
+
+    RefreshSettlementWarSquads();
+
+    for (int sid = 0; sid < (int)settlements.size(); sid++) {
+        Settlement& s = settlements[sid];
+        if (!s.alive) continue;
+        if (!s.warActive) continue;
+
+        if (!IsSettlementAliveAndValid(s.warTargetSettlementId)) {
+            s.preparedSquadCount = 0;
+            s.offensiveWaveReady = false;
+            continue;
+        }
+
+        s.preparedSquadCount = CountReadySquadsForSettlement(*this, sid);
+        s.offensiveWaveReady = (s.preparedSquadCount >= 3);
+    }
+}
+
+void World::UpdateSettlementWarAssignments()
+{
+    for (int sid = 0; sid < (int)settlements.size(); sid++) {
+        Settlement& s = settlements[sid];
+        if (!s.alive) continue;
+        if (!s.warActive) continue;
+
+        if (!IsSettlementAliveAndValid(s.warTargetSettlementId)) {
+            StopSettlementWar(sid);
+            continue;
+        }
+
+        if (!s.offensiveWaveReady) {
+            s.attackWaveLaunched = false;
+            s.warWaveSize = 0;
+            continue;
+        }
+
+        // If an offensive wave is already alive, do not relaunch yet.
+        bool anyOffensiveAlive = false;
+        for (const auto& npc : npcs) {
+            if (!npc.alive || npc.isDying) continue;
+            if (!npc.warAssigned) continue;
+            if (npc.warFromSettlementId != sid) continue;
+            if (npc.warTargetSettlementId != s.warTargetSettlementId) continue;
+            if (npc.warIsDefender) continue;
+            anyOffensiveAlive = true;
+            break;
+        }
+
+        if (anyOffensiveAlive) {
+            s.attackWaveLaunched = true;
+            continue;
+        }
+
+        // Clean stale offensive flags before launching a new wave.
+        for (auto& npc : npcs) {
+            if (!npc.alive || npc.isDying) continue;
+            if (!npc.warAssigned) continue;
+            if (npc.warFromSettlementId != sid) continue;
+            if (npc.warIsDefender) continue;
+
+            npc.warAssigned = false;
+            npc.warMarching = false;
+            npc.warTargetSettlementId = -1;
+            npc.warTargetPos = {0.0f, 0.0f};
+        }
+
+        int launchedSquads = 0;
+        int launchedUnits = 0;
+
+        for (auto& captain : npcs) {
+            if (!captain.alive || captain.isDying) continue;
+            if (captain.settlementId != sid) continue;
+            if (captain.humanRole != NPC::HumanRole::CAPTAIN) continue;
+            if (captain.warSquadIndex < 0) continue;
+
+            int warriorCount = CountAssignedWarriorsForCaptain(*this, sid, captain.id);
+            if (warriorCount < 2) continue;
+
+            captain.warAssigned = true;
+            captain.warFromSettlementId = sid;
+            captain.warTargetSettlementId = s.warTargetSettlementId;
+            captain.warMarching = true;
+            captain.warTargetPos = settlements[s.warTargetSettlementId].centerPx;
+            captain.warIsDefender = false;
+            captain.warReady = true;
+
+            launchedUnits++;
+
+            int assignedToCaptain = 0;
+            for (auto& warrior : npcs) {
+                if (!warrior.alive || warrior.isDying) continue;
+                if (warrior.settlementId != sid) continue;
+                if (warrior.humanRole != NPC::HumanRole::WARRIOR) continue;
+                if (warrior.warCaptainId != captain.id) continue;
+
+                warrior.warAssigned = true;
+                warrior.warFromSettlementId = sid;
+                warrior.warTargetSettlementId = s.warTargetSettlementId;
+                warrior.warMarching = true;
+                warrior.warTargetPos = settlements[s.warTargetSettlementId].centerPx;
+                warrior.warIsDefender = false;
+                warrior.warReady = true;
+
+                assignedToCaptain++;
+                launchedUnits++;
+
+                if (assignedToCaptain >= 5) break;
+            }
+
+            launchedSquads++;
+            if (launchedSquads >= 3) break;
+        }
+
+        if (launchedSquads >= 3) {
+            s.attackWaveLaunched = true;
+            s.warWaveSize = launchedUnits;
+        } else {
+            // failed launch: fully roll back offensive assignment for this settlement
+            for (auto& npc : npcs) {
+                if (!npc.alive || npc.isDying) continue;
+                if (!npc.warAssigned) continue;
+                if (npc.warFromSettlementId != sid) continue;
+                if (npc.warIsDefender) continue;
+
+                npc.warAssigned = false;
+                npc.warMarching = false;
+                npc.warTargetSettlementId = -1;
+                npc.warTargetPos = {0.0f, 0.0f};
+            }
+            s.attackWaveLaunched = false;
+            s.warWaveSize = 0;
+        }
+    }
+}
+
+void World::UpdateSettlementDefense(float dt)
+{
+    (void)dt;
+
+    RefreshSettlementWarSquads();
+    const float defenseRadius = CELL_SIZE * 10.0f;
+
+    for (int sid = 0; sid < (int)settlements.size(); sid++) {
+        Settlement& s = settlements[sid];
+        if (!s.alive) continue;
+        if (!s.warActive) continue;
+
+        bool underAttack = IsEnemySettlementTroopNearSettlement(*this, sid, defenseRadius);
+        s.defensiveMobilization = underAttack;
+
+        if (!underAttack) {
+            // Release defenders that are no longer needed.
+            for (auto& npc : npcs) {
+                if (!npc.alive || npc.isDying) continue;
+                if (!npc.warAssigned) continue;
+                if (!npc.warIsDefender) continue;
+                if (npc.warFromSettlementId != sid) continue;
+
+                npc.warAssigned = false;
+                npc.warMarching = false;
+                npc.warTargetPos = {0.0f, 0.0f};
+                npc.warTargetSettlementId = -1;
+                npc.warIsDefender = false;
+            }
+            continue;
+        }
+
+        int hostileIndex = FindNearestHostileTroopNearSettlement(*this, sid, s.centerPx, defenseRadius);
+        if (hostileIndex == -1) continue;
+
+        int targetEnemySettlement = npcs[hostileIndex].settlementId;
+        if (targetEnemySettlement < 0) continue;
+
+        // Mobilize ALL valid ready squads for defense, not just one pass that may miss units.
+        for (auto& captain : npcs) {
+            if (!captain.alive || captain.isDying) continue;
+            if (captain.settlementId != sid) continue;
+            if (captain.humanRole != NPC::HumanRole::CAPTAIN) continue;
+            if (captain.warSquadIndex < 0) continue;
+            if (captain.warAssigned && !captain.warIsDefender) continue;
+
+            captain.warAssigned = true;
+            captain.warFromSettlementId = sid;
+            captain.warTargetSettlementId = targetEnemySettlement;
+            captain.warMarching = false;
+            captain.warTargetPos = s.centerPx;
+            captain.warIsDefender = true;
+            captain.warReady = true;
+
+            for (auto& warrior : npcs) {
+                if (!warrior.alive || warrior.isDying) continue;
+                if (warrior.settlementId != sid) continue;
+                if (warrior.humanRole != NPC::HumanRole::WARRIOR) continue;
+                if (warrior.warCaptainId != captain.id) continue;
+                if (warrior.warAssigned && !warrior.warIsDefender) continue;
+
+                warrior.warAssigned = true;
+                warrior.warFromSettlementId = sid;
+                warrior.warTargetSettlementId = targetEnemySettlement;
+                warrior.warMarching = false;
+                warrior.warTargetPos = s.centerPx;
+                warrior.warIsDefender = true;
+                warrior.warReady = true;
+            }
+        }
+    }
+}
+
+void World::UpdateSettlementWars(float dt)
+{
+    UpdateSettlementWarPreparation(dt);
+    UpdateSettlementDefense(dt);
+    const float defenseRadius = CELL_SIZE * 10.0f;
+
+    // Release stale defender assignments if no hostile troops remain near their home settlement.
+    for (auto& npc : npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (!npc.warAssigned) continue;
+        if (!npc.warIsDefender) continue;
+        if (npc.settlementId < 0 || npc.settlementId >= (int)settlements.size()) continue;
+        if (!settlements[npc.settlementId].alive) continue;
+
+        bool stillUnderAttack = IsEnemySettlementTroopNearSettlement(*this, npc.settlementId, defenseRadius);
+        if (!stillUnderAttack) {
+            npc.warAssigned = false;
+            npc.warMarching = false;
+            npc.warTargetSettlementId = -1;
+            npc.warTargetPos = {0.0f, 0.0f};
+            npc.warIsDefender = false;
+        }
+    }
+
+    for (int sid = 0; sid < (int)settlements.size(); sid++) {
+        Settlement& s = settlements[sid];
+        if (!s.alive) continue;
+        if (!s.warActive) continue;
+
+        if (!IsSettlementAliveAndValid(s.warTargetSettlementId)) {
+            StopSettlementWar(sid);
+            continue;
+        }
+
+        bool anyOffensiveAssignedAlive = false;
+        for (const auto& npc : npcs) {
+            if (!npc.alive || npc.isDying) continue;
+            if (!npc.warAssigned) continue;
+            if (npc.warFromSettlementId != sid) continue;
+            if (npc.warTargetSettlementId != s.warTargetSettlementId) continue;
+            if (npc.warIsDefender) continue;
+
+            anyOffensiveAssignedAlive = true;
+            break;
+        }
+
+        if (!anyOffensiveAssignedAlive) {
+            s.attackWaveLaunched = false;
+            s.warWaveSize = 0;
+        }
+    }
+
+    // Preparation and launch must happen every frame after stale-wave cleanup.
+    UpdateSettlementWarPreparation(dt);
+    UpdateSettlementWarAssignments();
+}
+
 void World::BeginNpcAttack(NPC& npc, Vector2 targetPos) {
     Vector2 dir = Vector2Subtract(targetPos, npc.pos);
 
@@ -685,6 +1290,15 @@ void World::BeginNpcDeath(NPC& npc) {
     npc.captainHasAttackOrder = false;
     npc.captainAttackGroupId = -1;
     npc.captainAttackTargetId = 0;
+    npc.warAssigned = false;
+    npc.warFromSettlementId = -1;
+    npc.warTargetSettlementId = -1;
+    npc.warMarching = false;
+    npc.warTargetPos = {0.0f, 0.0f};
+    npc.warCaptainId = 0;
+    npc.warSquadIndex = -1;
+    npc.warIsDefender = false;
+    npc.warReady = false;
 
     if (selectedCaptainId == npc.id) {
         selectedCaptainId = 0;
@@ -801,8 +1415,8 @@ void World::Update(float dt) {
             npc.banditGroupDir = dir;
 
             npc.speed = 40.0f;
-            npc.hp = 170.0f;
-            npc.damage = 16.0f;
+            npc.hp = 140.0f;
+            npc.damage = 14.0f;
             npc.pos = {
                     spawnPos.x + (float)GetRandomValue(-10, 10),
                     spawnPos.y + (float)GetRandomValue(-10, 10)
@@ -897,6 +1511,10 @@ void World::Update(float dt) {
         }
 
         if (!anyoneLeft) {
+            int settlementIndex = (int)(&s - &settlements[0]);
+            if (s.warActive) {
+                StopSettlementWar(settlementIndex);
+            }
             s.alive = false;
         }
     }
@@ -904,6 +1522,7 @@ void World::Update(float dt) {
     MergeSettlementsIfNeeded();
     UpdateCampfires();
     UpdateBarracks();
+    UpdateSettlementWars(dt);
 }
 
 // ------------------------------------------------------------
@@ -986,6 +1605,25 @@ void World::Draw() const {
                     CELL_SIZE,
                     fill
             );
+        }
+    }
+
+    for (int i = 0; i < (int)settlements.size(); i++) {
+        const Settlement& s = settlements[i];
+        if (!s.alive) continue;
+        if (!s.warActive) continue;
+
+        Color c = s.offensiveWaveReady ? Color{220,60,60,255} : Color{220,190,60,255};
+        DrawRectangleLinesEx(s.boundsPx, 2.0f, c);
+
+        if (s.defensiveMobilization) {
+            DrawCircleV(s.centerPx, 6.0f, Color{255,140,60,220});
+        }
+
+        if (s.warTargetSettlementId >= 0 &&
+            s.warTargetSettlementId < (int)settlements.size() &&
+            settlements[s.warTargetSettlementId].alive) {
+            DrawLineV(s.centerPx, settlements[s.warTargetSettlementId].centerPx, Color{220, 60, 60, 180});
         }
     }
 
