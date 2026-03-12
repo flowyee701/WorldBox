@@ -1,12 +1,11 @@
 #pragma once
-#include <vector>
 #include <algorithm>
+#include <vector>
 
 #include <raylib.h>
 #include "raymath.h"
 #include "npc/npc.h"
 #include "settlement.h"
-
 
 struct Settlement;
 
@@ -36,36 +35,35 @@ public:
 
     bool npcSpritesLoaded = false;
 
+    // NPC sprite resources
     void LoadNpcSprites();
     void UnloadNpcSprites();
 
-
-    // ✅ ВОТ ЭТО ВАЖНО
+    // Bandit spawning state
     float banditSpawnTimer = 0.0f;
     int nextBanditGroupId = 1;
+
+    // Captain resources and spawning
     void SpawnCaptain(Vector2 pos);
     Texture2D captainTex{};
     bool captainTexLoaded = false;
-    // ===== Campfire =====
-    static constexpr int FIRE_FRAMES = 4;
 
+    // Campfire resources
+    static constexpr int FIRE_FRAMES = 4;
     Texture2D fireTex[FIRE_FRAMES]{};
     bool fireLoaded[FIRE_FRAMES]{false};
-
     int fireFrame = 0;
     float fireAnimT = 0.0f;
-    float fireAnimSpeed = 0.10f; // 0.10 = 10 кадров/сек (можно 0.12..0.18)
+    float fireAnimSpeed = 0.10f;
 
-    // ===== Barracks =====
+    // Barracks resources
     Texture2D barracksTex{};
     bool barracksTexLoaded = false;
 
-    // -------------------------------------------------
-    // NPC ids & captain selection
-    // -------------------------------------------------
-    uint32_t nextNpcId = 1;           // ids start at 1
-    uint32_t selectedCaptainId = 0;   // 0 = none selected
-    int selectedCaptainIndex = -1; // индекс в npcs, -1 если никто не выбран
+    // NPC ids and captain selection
+    uint32_t nextNpcId = 1;
+    uint32_t selectedCaptainId = 0;
+    int selectedCaptainIndex = -1;
 
     NPC* FindNpcById(uint32_t id);
     const NPC* FindNpcById(uint32_t id) const;
@@ -82,7 +80,7 @@ public:
 
     void LoadFireSprites();
     void UnloadFireSprites();
-    void UpdateCampfires(); // пересчёт позиций костров по центру поселений
+    void UpdateCampfires();
     void LoadBarracksSprite();
     void UnloadBarracksSprite();
     void UpdateBarracks();
@@ -108,7 +106,7 @@ public:
 
     void Shutdown();
 };
+
 inline float RandomFloat(float min, float max) {
     return min + (float)GetRandomValue(0, 10000) / 10000.0f * (max - min);
-
-};
+}

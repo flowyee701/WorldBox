@@ -42,7 +42,7 @@ static Vector2 RotateFromBaseY(Vector2 local, Vector2 forward) {
 }
 
 namespace CaptainFormation {
-
+    // Returns the captain-facing vector used by formation slots
     Vector2 GetCaptainFacing(const NPC& captain) {
         if (captain.captainHasMoveOrder) {
             Vector2 toTarget = Vector2Subtract(captain.captainMoveTarget, captain.pos);
@@ -56,8 +56,7 @@ namespace CaptainFormation {
         return {0.0f, 1.0f};
     }
 
-// MANUAL: походная колонна 2x7 + 1 замыкающий
-// COMBAT: линия с резервом 7 + 5 + 3
+    // Returns the slot offset for march or combat formations
     Vector2 GetSlotOffset(int slot, bool combatMode) {
         if (slot < 0) slot = 0;
         if (slot > 14) slot = 14;
@@ -310,7 +309,7 @@ static void RefreshCaptainSquad(World& world, NPC& captain) {
         if (n.humanRole != NPC::HumanRole::WARRIOR) continue;
         if (n.settlementId != captain.settlementId) continue;
 
-        // не крадём воинов у другого капитана
+        // Keep warriors attached to their current captain
         if (n.leaderCaptainId != 0 && n.leaderCaptainId != captain.id) continue;
 
         candidates.push_back({ Dist2(n.pos, captain.pos), n.id });
@@ -373,6 +372,7 @@ static bool ExecuteAttackOrder(World& world, NPC& captain, float dt, int groupId
     return true;
 }
 
+// Updates captain behavior
 void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
     if (npc.humanRole != NPC::HumanRole::CAPTAIN) return;
 
@@ -394,7 +394,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
 
     RefreshCaptainSquad(world, npc);
 
-    // 1) PLAYER ATTACK ORDER
+    // Handle player-issued attack orders
     if (npc.captainHasAttackOrder && npc.captainAttackGroupId != -1) {
         if (ExecuteAttackOrder(world, npc, dt, npc.captainAttackGroupId)) {
             return;
@@ -405,8 +405,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         npc.captainAttackTargetId = 0;
     }
 
-    // 2) SETTLEMENT WAR / DEFENSE
-    // War must take priority over stale MANUAL IDLE state.
+    // Handle settlement war and defense behavior
     if (npc.warAssigned &&
         npc.warTargetSettlementId >= 0 &&
         world.IsSettlementAliveAndValid(npc.warTargetSettlementId) &&
@@ -423,7 +422,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
             npc.warTargetPos = world.settlements[npc.warTargetSettlementId].centerPx;
         }
 
-        // Captain stops holding formation and just fights nearby enemy combat units.
+        // Captain stops holding formation and just fights nearby enemy combat units
         if (npc.warInBattle) {
             int localEnemyIndex = FindNearestEnemyCombatNearNpc(world, npc, CELL_SIZE * 9.0f);
             if (localEnemyIndex != -1) {
@@ -449,7 +448,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
             return;
         }
 
-        // Approach / regroup mode.
+        // Approach / regroup mode
         int enemyIndex = FindNearestEnemyNpcForSettlementWar(world, npc, npc.warTargetSettlementId, CELL_SIZE * 26.0f);
         if (enemyIndex != -1) {
             NPC& enemy = world.npcs[enemyIndex];
@@ -467,7 +466,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
             return;
         }
 
-        // If no enemy combat troops remain, attack the barracks.
+        // If no enemy combat troops remain, attack the barracks
         if (!world.SettlementHasLivingCombatUnits(npc.warTargetSettlementId)) {
             const Settlement& targetSettlement = world.settlements[npc.warTargetSettlementId];
             int barracksIndex = FindNearestAliveBarracksIndex(targetSettlement, npc.pos);
@@ -492,7 +491,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
             }
         }
 
-        // Continue advancing toward the war target.
+        // Continue advancing toward the war target
         float dx = npc.warTargetPos.x - npc.pos.x;
         float dy = npc.warTargetPos.y - npc.pos.y;
         float dist2 = dx*dx + dy*dy;
@@ -510,7 +509,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         return;
     }
 
-    // 3) MANUAL MODE
+    // Handle direct manual control
     if (!npc.captainAutoMode) {
         if (npc.captainHasMoveOrder) {
             float d2 = Dist2(npc.pos, npc.captainMoveTarget);
@@ -536,7 +535,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         return;
     }
 
-    // 4) AUTO MODE
+    // Handle automatic threat response
     int threatBandit = FindThreatBanditNearSettlement(world, s, npc.pos);
     if (threatBandit != -1) {
         npc.captainHasAttackOrder = true;
@@ -547,7 +546,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         return;
     }
 
-    // 4) AUTO IDLE — держимся у костра / центра
+    // Idle near the campfire when no threat is present
     Vector2 camp = s.campfirePosPx;
     if (camp.x == 0.0f && camp.y == 0.0f) camp = s.centerPx;
 

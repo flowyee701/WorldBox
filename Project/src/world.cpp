@@ -7,11 +7,9 @@
 #include <cfloat>
 #include <iostream>
 #include <string>
-// ------------------------------------------------------------
-// Helpers
+
+// Returns a random spawn position on the world edge
 static Vector2 RandomOutsideSpawn(int w, int h) {
-    // Теперь спавним bandit-группы прямо на кромке мира,
-    // чтобы NPC никогда не существовали за его пределами.
     int side = GetRandomValue(0, 3);
     switch (side) {
         case 0: return {0.0f,        (float)GetRandomValue(0, h)};
@@ -453,20 +451,16 @@ static void SpawnProducedCaptain(World& world, int settlementId, Vector2 pos) {
     world.npcs.push_back(npc);
 }
 
-
-// Ищем файл в нескольких местах относительно Working Directory
+// Resolves an asset path relative to the working directory
 static std::string FindAssetPath(const char* relativePath)
 {
     const char* wd = GetWorkingDirectory();
 
-    // чаще всего у тебя WD = .../cmake-build-debug/Project/app
-    // а assets лежит в .../Project/assets
-    // значит рабочий путь: "../assets/...."
     const char* candidates[] = {
-            "",         // wd/relativePath
-            "../",      // wd/../relativePath
-            "../../",   // wd/../../relativePath
-            "../../../" // на всякий случай
+            "",
+            "../",
+            "../../",
+            "../../../"
     };
 
     for (const char* base : candidates) {
@@ -477,9 +471,9 @@ static std::string FindAssetPath(const char* relativePath)
     return "";
 }
 
+// Loads NPC sprite textures
 void World::LoadNpcSprites()
 {
-
     if (npcSpritesLoaded) return;
 
     auto loadOne = [&](Texture2D& outTex, bool& outLoaded, const char* relPath) {
@@ -535,7 +529,7 @@ void World::UnloadNpcSprites()
 void World::LoadFireSprites()
 {
     auto loadOne = [&](Texture2D& outTex, bool& outLoaded, const char* relPath) {
-        std::string p = FindAssetPath(relPath); // у тебя FindAssetPath уже есть
+        std::string p = FindAssetPath(relPath);
         if (p.empty()) {
             TraceLog(LOG_ERROR, "FIRE missing: %s (WD=%s)", relPath, GetWorkingDirectory());
             outLoaded = false;
@@ -606,7 +600,7 @@ void World::UpdateCampfires()
 
         Vector2 c = s.centerPx;
 
-        // если вдруг центр не внутри — ставим в ближайший тайл
+        // Snap to the nearest settlement tile if the cached center drifts out
         if (!PointInSettlementPx(s, c)) {
             c = NearestTileCenterPx(*this, s, c);
         }
@@ -827,7 +821,6 @@ Rectangle World::ComputeSettlementBoundsPx(const Settlement& s) {
 }
 
 
-// ------------------------------------------------------------
 void World::MergeSettlementsIfNeeded() {
     for (int i = 0; i < (int)settlements.size(); i++) {
         if (!settlements[i].alive) continue;
@@ -850,7 +843,7 @@ void World::MergeSettlementsIfNeeded() {
                 StopSettlementWar(j);
             }
 
-            // объединяем j -> i
+            // Merge settlement j into settlement i
             for (int tile : settlements[j].tiles)
                 settlements[i].tiles.insert(tile);
 
@@ -904,7 +897,7 @@ void World::SpawnCivilian(Vector2 pos) {
     npc.damage = 0.0f;
 
 
-    // 1) если клик внутри существующего поселения — просто присоединяем
+    // Join an existing settlement if the click lands inside one
     int sid = -1;
     for (int i = 0; i < (int) settlements.size(); i++) {
         if (!settlements[i].alive) continue;
@@ -919,7 +912,7 @@ void World::SpawnCivilian(Vector2 pos) {
         return;
     }
 
-    // 2) иначе — ищем рядом "свободных" жителей без поселения
+    // Otherwise look for nearby free civilians to form a new settlement
     if (sid == -1) {
         std::vector<int> nearbyFreeCivs;
         for (int i = 0; i < (int) npcs.size(); i++) {
@@ -933,7 +926,7 @@ void World::SpawnCivilian(Vector2 pos) {
             if (dx * dx + dy * dy < 90.0f * 90.0f) nearbyFreeCivs.push_back(i);
         }
 
-        // если есть 2 рядом — создаём новое поселение (3-й будет текущий npc)
+        // Create a new settlement when two nearby free civilians are found
         if (nearbyFreeCivs.size() >= 2) {
             Settlement s;
             s.alive = true;
@@ -942,7 +935,7 @@ void World::SpawnCivilian(Vector2 pos) {
             int cx = (int)(pos.x / CELL_SIZE);
             int cy = (int)(pos.y / CELL_SIZE);
 
-            constexpr int R = 8; // радиус поселения в клетках
+            constexpr int R = 8;
 
             for (int dy = -R; dy <= R; dy++) {
                 for (int dx = -R; dx <= R; dx++) {
@@ -982,12 +975,12 @@ void World::SpawnWarrior(Vector2 pos) {
     npc.skinId = (uint16_t)GetRandomValue(0, 2);
     npc.pos = pos;
     npc.vel = {0,0};
-    npc.speed = 35.0f; // скорость воина (и капитана тоже)
+    npc.speed = 35.0f;
     npc.hp = 180.0f;
     npc.damage =16.0f;
     npc.settlementId = -1;
 
-    // 🔹 НОВОЕ: если клик внутри поселения — сразу привязываем
+    // Attach spawned warriors to the clicked settlement when possible
     for (int i = 0; i < (int)settlements.size(); i++) {
         if (!settlements[i].alive) continue;
         if (PointInSettlementPx(settlements[i], pos)) {
@@ -1010,7 +1003,6 @@ void World::SpawnCaptain(Vector2 pos) {
     npc.pos = pos;
     npc.vel = {0, 0};
 
-    // Сбалансированный капитан: сильнее воина, но не "босс"
     npc.speed = 35.0f;
     npc.hp = 260.0f;
     npc.damage = 22.0f;
@@ -1305,7 +1297,7 @@ void World::UpdateSettlementWarAssignments()
             continue;
         }
 
-        // If an offensive wave is already alive, do not relaunch yet.
+        // If an offensive wave is already alive, do not relaunch yet
         bool anyOffensiveAlive = false;
         for (const auto& npc : npcs) {
             if (!npc.alive || npc.isDying) continue;
@@ -1322,7 +1314,7 @@ void World::UpdateSettlementWarAssignments()
             continue;
         }
 
-        // Clean stale offensive flags before launching a new wave.
+        // Clean stale offensive flags before launching a new wave
         for (auto& npc : npcs) {
             if (!npc.alive || npc.isDying) continue;
             if (!npc.warAssigned) continue;
@@ -1355,7 +1347,7 @@ void World::UpdateSettlementWarAssignments()
             captain.warIsDefender = false;
             captain.warReady = true;
 
-            // Settlement war must not be blocked by stale player/manual state.
+            // Settlement war must not be blocked by stale player/manual state
             captain.manualControl = false;
             captain.hasMoveTarget = false;
             captain.captainHasMoveOrder = false;
@@ -1427,7 +1419,7 @@ void World::UpdateSettlementDefense(float dt)
         s.defensiveMobilization = underAttack;
 
         if (!underAttack) {
-            // Release only defender state when danger is gone.
+            // Release only defender state when danger is gone
             for (auto& npc : npcs) {
                 if (!npc.alive || npc.isDying) continue;
                 if (!npc.warAssigned) continue;
@@ -1451,7 +1443,7 @@ void World::UpdateSettlementDefense(float dt)
         int targetEnemySettlement = npcs[hostileIndex].settlementId;
         if (targetEnemySettlement < 0) continue;
 
-        // Mobilize all available captains first.
+        // Mobilize all available captains first
         for (auto& captain : npcs) {
             if (!captain.alive || captain.isDying) continue;
             if (captain.settlementId != sid) continue;
@@ -1465,7 +1457,7 @@ void World::UpdateSettlementDefense(float dt)
             captain.warIsDefender = true;
             captain.warReady = true;
 
-            // Settlement defense must not be blocked by stale player/manual state.
+            // Settlement defense must not be blocked by stale player/manual state
             captain.manualControl = false;
             captain.hasMoveTarget = false;
             captain.captainHasMoveOrder = false;
@@ -1474,7 +1466,7 @@ void World::UpdateSettlementDefense(float dt)
             captain.captainAttackTargetId = 0;
         }
 
-        // Mobilize all available warriors too, even if captain link is absent or broken.
+        // Mobilize all available warriors too, even if captain link is absent or broken
         for (auto& warrior : npcs) {
             if (!warrior.alive || warrior.isDying) continue;
             if (warrior.settlementId != sid) continue;
@@ -1521,7 +1513,7 @@ void World::UpdateSettlementWars(float dt)
         }
     }
 
-    // Release stale defender assignments if no hostile troops remain near their home settlement.
+    // Release stale defender assignments if no hostile troops remain near their home settlement
     for (auto& npc : npcs) {
         if (!npc.alive || npc.isDying) continue;
         if (!npc.warAssigned) continue;
@@ -1569,7 +1561,7 @@ void World::UpdateSettlementWars(float dt)
         }
     }
 
-    // Preparation and launch must happen every frame after stale-wave cleanup.
+    // Preparation and launch must happen every frame after stale-wave cleanup
     UpdateSettlementWarPreparation(dt);
     UpdateSettlementWarAssignments();
 }
@@ -1631,14 +1623,14 @@ void World::BeginNpcDeath(NPC& npc) {
                 other.leaderCaptainId = 0;
                 other.formationSlot = -1;
 
-                // During settlement war, followers must keep fighting and not fall back to idle/home behavior.
+                // During settlement war, followers must keep fighting and not fall back to idle/home behavior
                 if (!other.warAssigned) {
                     other.inCombat = false;
                 }
             }
 
             // If the dead captain was the warrior's war captain, detach only the captain reference,
-            // but keep the warrior in war state so he continues fighting.
+            // but keep the warrior in war state so he continues fighting
             if (other.warCaptainId == npc.id) {
                 other.warCaptainId = 0;
                 other.warReady = true;
@@ -1667,7 +1659,7 @@ void World::IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx) {
     cap->captainAttackGroupId = -1;
     cap->captainAttackTargetId = 0;
 
-    // поддерживаем старые поля, чтобы не было рассинхрона с остальным кодом
+    // Keep older captain command fields synchronized
     cap->manualControl = true;
     cap->hasMoveTarget = true;
     cap->moveTargetPx = targetPx;
@@ -1681,10 +1673,7 @@ static void DrawBanditTriangle(Vector2 pos, float size, Color color) {
     DrawTriangleLines(p1, p2, p3, BLACK);
 }
 
-// ------------------------------------------------------------
-// Init
-// ------------------------------------------------------------
-
+// Initializes world state and runtime resources
 void World::Init()
 {
     cols = worldW / CELL_SIZE;
@@ -1696,7 +1685,7 @@ void World::Init()
     banditSpawnTimer = 0.0f;
     nextBanditGroupId = 1;
 
-    LoadNpcSprites(); // <-- ВАЖНО
+    LoadNpcSprites();
 
     LoadFireSprites();
     LoadBarracksSprite();
@@ -1715,13 +1704,10 @@ void World::Shutdown()
 
 
 
-// ------------------------------------------------------------
-// Update
-// ------------------------------------------------------------
-
+// Updates the world simulation for one frame
 void World::Update(float dt) {
 
-    // -------- bandit group spawning --------
+    // Spawn new bandit groups
     banditSpawnTimer -= dt;
 
     if (banditSpawnTimer <= 0.0f) {
@@ -1762,7 +1748,7 @@ void World::Update(float dt) {
         }
     }
 
-    // -------- update all NPCs --------
+    // Update NPC behavior
     for (auto& npc : npcs) {
         if (npc.isDying) {
             npc.deathTimer += dt;
@@ -1791,7 +1777,7 @@ void World::Update(float dt) {
         }
     }
 
-    // -------- fire animation --------
+    // Advance fire animation
     fireAnimT += dt;
     if (fireAnimT >= fireAnimSpeed) {
         fireAnimT = 0.0f;
@@ -1802,7 +1788,7 @@ void World::Update(float dt) {
     UpdateBarracks();
     UpdateBarracksProduction(dt);
 
-    // --- auto-bind wild HUMAN NPC to first settlement they enter ---
+    // Bind wild humans to the first settlement they enter
     for (auto& npc : npcs) {
         if (!npc.alive || npc.isDying) continue;
         if (npc.settlementId != -1) continue;
@@ -1822,7 +1808,7 @@ void World::Update(float dt) {
         }
     }
 
-    // -------- cleanup dead bandits / dead npc --------
+    // Remove entities whose death state has fully finished
     npcs.erase(
             std::remove_if(npcs.begin(), npcs.end(),
                            [](const NPC& n) {
@@ -1859,9 +1845,7 @@ void World::Update(float dt) {
     UpdateSettlementWars(dt);
 }
 
-// ------------------------------------------------------------
-// Draw
-// ------------------------------------------------------------
+// Returns a fully opaque settlement color
 Color GetSafeSettlementColor(const World &w, int sid) {
     Color c = {220, 220, 220, 255};
 
@@ -1869,31 +1853,30 @@ Color GetSafeSettlementColor(const World &w, int sid) {
         c = w.settlements[sid].color;
     }
 
-    c.a = 255; // <- ЖЕЛЕЗНО непрозрачный всегда
+    c.a = 255;
     return c;
 }
 
+// Draws a solid diamond marker
 static void DrawDiamondSolid(Vector2 center, int r, Color col)
 {
-    // col.a игнорируем не будем — но на всякий случай
     col.a = 255;
 
     int cx = (int)center.x;
     int cy = (int)center.y;
 
-    // верхняя половина (включая середину)
     for (int dy = -r; dy <= 0; dy++) {
-        int half = r + dy; // 0..r
+        int half = r + dy;
         DrawLine(cx - half, cy + dy, cx + half, cy + dy, col);
     }
 
-    // нижняя половина
     for (int dy = 1; dy <= r; dy++) {
-        int half = r - dy; // r-1..0
+        int half = r - dy;
         DrawLine(cx - half, cy + dy, cx + half, cy + dy, col);
     }
 }
 
+// Draws a diamond outline marker
 static void DrawDiamondOutline(Vector2 center, int r, Color col)
 {
     col.a = 255;
@@ -1961,7 +1944,7 @@ void World::Draw() const {
         }
     }
 
-    // ---- BARRACKS ----
+    // Draw all barracks
     for (const auto& s : settlements) {
         if (!s.alive) continue;
 
@@ -2012,10 +1995,7 @@ void World::Draw() const {
         }
     }
 
-
-    // =====================
-// NPCs (fixed size by CELL_SIZE)
-// =====================
+    // Draw NPCs at a fixed world scale
     for (const auto& npc : npcs) {
 
         if (!npc.alive && !npc.isDying) continue;
@@ -2049,20 +2029,17 @@ void World::Draw() const {
         float mult = 1.0f;
         if (npc.humanRole == NPC::HumanRole::CIVILIAN) mult = 1.15f;
         if (npc.humanRole == NPC::HumanRole::BANDIT)   mult = 1.05f;
-        if (npc.humanRole == NPC::HumanRole::CAPTAIN)  mult = 1.6f; // такой же размер, как у остальных боевых NPC
+        if (npc.humanRole == NPC::HumanRole::CAPTAIN)  mult = 1.6f;
 
-        // базовый размер на карте: 2 клетки
         float w = (float)CELL_SIZE * 2.0f * mult;
         float h = (float)CELL_SIZE * 2.0f * mult;
 
-        // якорим "ноги" в npc.pos: низ спрайта = npc.pos.y
         Rectangle dst{
                 floorf(npc.pos.x - w * 0.5f),
                 floorf(npc.pos.y - h * 0.5f),
                 w, h
         };
 
-        // если спрайта нет — fallback
         if (!tex || !loaded || tex->id == 0) {
             float size = CELL_SIZE * 0.4f;
             Color c = GetSafeSettlementColor(*this, npc.settlementId);
@@ -2144,23 +2121,23 @@ void World::Draw() const {
             DrawCircleLines((int)npc.pos.x, (int)npc.pos.y, CELL_SIZE * 1.3f + 1.0f, BLACK);
         }
 
-        // --- обозначение поселения: плотный пиксельный ромбик над головой ---
+        // Draw a settlement marker above the NPC
         if (npc.settlementId != -1) {
-            Color sc = GetSafeSettlementColor(*this, npc.settlementId); // уже a=255
+            Color sc = GetSafeSettlementColor(*this, npc.settlementId);
             sc.a = 255;
 
-            // позиция над головой: top спрайта = npc.pos.y - h
             Vector2 c = {
                     (float)((int)npc.pos.x),
-                    (float)((int)(npc.pos.y - h - 8.0f))  // чуть выше; подстрой 4..8
+                    (float)((int)(npc.pos.y - h - 8.0f))
             };
 
-            const int r = 3; // размер ромбика
+            const int r = 3;
             DrawDiamondSolid(c, r, sc);
             DrawDiamondOutline(c, r, BLACK);
         }
     }
-    // ---- CAMPFIRES ----
+
+    // Draw campfires
     int f = fireFrame;
     if (f < 0 || f >= FIRE_FRAMES) f = 0;
 
@@ -2168,7 +2145,6 @@ void World::Draw() const {
         if (!s.alive) continue;
         if (!fireLoaded[f] || fireTex[f].id == 0) continue;
 
-        // рисуем крупнее, чем NPC
         float w = (float)CELL_SIZE * 4.0f;
         float h = (float)CELL_SIZE * 4.0f;
 

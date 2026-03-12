@@ -14,6 +14,7 @@ enum class SpawnMode { CIVILIAN, WARRIOR, BUILD_BARRACKS };
 enum class WarriorRank { WARRIOR, CAPTAIN };
 enum class ToolMode { NONE, KILL, WAR };
 
+// Applies a borderless fullscreen window layout
 static void ApplyBorderlessFullscreen() {
     int monitor = GetCurrentMonitor();
     Vector2 monitorPos = GetMonitorPosition(monitor);
@@ -25,6 +26,7 @@ static void ApplyBorderlessFullscreen() {
     SetWindowSize(monitorWidth, monitorHeight);
 }
 
+// Restores a centered windowed layout
 static void ApplyWindowedMode(int width, int height) {
     ClearWindowState(FLAG_WINDOW_UNDECORATED);
 
@@ -40,6 +42,7 @@ static void ApplyWindowedMode(int width, int height) {
     SetWindowPosition(x, y);
 }
 
+// Picks the nearest alive NPC of a specific role near the cursor
 static int PickNpcIndexByRole(const World& world, Vector2 mouseWorld, NPC::HumanRole role, float radius) {
     const float r2 = radius * radius;
 
@@ -60,6 +63,7 @@ static int PickNpcIndexByRole(const World& world, Vector2 mouseWorld, NPC::Human
     return -1;
 }
 
+// Returns a short label for the selected captain mode
 static const char* GetCaptainModeLabel(const NPC& cap) {
     if (cap.captainHasAttackOrder) return "MANUAL ATTACK";
     if (!cap.captainAutoMode && cap.captainHasMoveOrder) return "MANUAL MOVE";
@@ -67,6 +71,7 @@ static const char* GetCaptainModeLabel(const NPC& cap) {
     return "AUTO";
 }
 
+// Picks the nearest alive NPC regardless of role
 static int PickAnyNpcIndex(const World& world, Vector2 mouseWorld, float radius) {
     const float r2 = radius * radius;
     int best = -1;
@@ -91,6 +96,7 @@ static int PickAnyNpcIndex(const World& world, Vector2 mouseWorld, float radius)
     return best;
 }
 
+// Finds the settlement under the cursor
 static int PickSettlementIndexAtWorldPos(const World& world, Vector2 mouseWorld)
 {
     for (int i = 0; i < (int)world.settlements.size(); i++) {
@@ -104,6 +110,7 @@ static int PickSettlementIndexAtWorldPos(const World& world, Vector2 mouseWorld)
     return -1;
 }
 
+// Resolves the current mode icon texture
 static const Texture2D* GetCurrentModeIcon(const World& world,
                                            SpawnMode mode,
                                            WarriorRank warriorRank,
