@@ -144,7 +144,7 @@ void World::LoadNpcSprites()
 
     npcSpritesLoaded = true;
 
-    std::string horsePath = FindAssetPath("assets/npc/animal.png");
+    std::string horsePath = FindAssetPath("assets/npc/animal/animal.png");
     if (!horsePath.empty()) {
         Animal::texture = LoadTexture(horsePath.c_str());
 
@@ -162,6 +162,20 @@ void World::LoadNpcSprites()
         Animal::textureLoaded = false;
     }
 
+    // Загрузка цветка
+    std::string flowerPath = FindAssetPath("assets/environment/flower/flower.png");
+    if (!flowerPath.empty()) {
+        Plant::texFlower = LoadTexture(flowerPath.c_str());
+        SetTextureFilter(Plant::texFlower, TEXTURE_FILTER_POINT);
+    }
+
+// Загрузка дерева
+    std::string treePath = FindAssetPath("assets/environment/tree/tree.png");
+    if (!treePath.empty()) {
+        Plant::texTree = LoadTexture(treePath.c_str());
+        SetTextureFilter(Plant::texTree, TEXTURE_FILTER_POINT);
+        Plant::texturesLoaded = true; // Считаем загруженным, когда есть оба
+    }
     npcSpritesLoaded = true;
 }
 
@@ -537,7 +551,7 @@ void World::Init()
     nextNpcId = 1;
     selectedCaptainId = 0;
 
-    GenerateNature(40, 15);
+    GenerateNature(200, 20);
 }
 void World::Shutdown()
 {
