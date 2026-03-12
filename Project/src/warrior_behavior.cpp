@@ -82,6 +82,123 @@ static int FindNearestBanditInGroup(const World& world, Vector2 from, int groupI
     return best;
 }
 
+static int FindNearestEnemyNpcForSettlementWar(World& world, const NPC& attacker, int enemySettlementId, float maxDistPx) {
+    float bestD2 = maxDistPx * maxDistPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.settlementId != enemySettlementId) continue;
+        if (other.id == attacker.id) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else if (other.humanRole == NPC::HumanRole::CIVILIAN) priority = 2;
+        else continue;
+
+        float dx = other.pos.x - attacker.pos.x;
+        float dy = other.pos.y - attacker.pos.y;
+        float d2 = dx*dx + dy*dy;
+
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static int FindNearestEnemyCombatNearNpc(World& world, const NPC& npc, float radiusPx) {
+    float bestD2 = radiusPx * radiusPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.settlementId == npc.settlementId) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static int FindNearestAliveBarracksIndex(const Settlement& s, Vector2 fromPos)
+{
+    float bestD2 = 1e30f;
+    int bestIndex = -1;
+
+    for (int i = 0; i < (int)s.barracksList.size(); i++) {
+        const Barracks& b = s.barracksList[i];
+        if (!b.alive) continue;
+        if (b.hp <= 0.0f) continue;
+
+        float dx = b.posPx.x - fromPos.x;
+        float dy = b.posPx.y - fromPos.y;
+        float d2 = dx * dx + dy * dy;
+
+        if (d2 < bestD2) {
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static int FindNearestHostileTroopNearSettlement(World& world, int homeSettlementId, Vector2 homePos, float maxDistPx) {
+    float bestD2 = maxDistPx * maxDistPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.settlementId == homeSettlementId) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else if (other.humanRole == NPC::HumanRole::CIVILIAN) priority = 2;
+        else continue;
+
+        float dx = other.pos.x - homePos.x;
+        float dy = other.pos.y - homePos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
 static void TryMeleeAttack(World& world, NPC& attacker, NPC& target, float dt, float cooldownSeconds) {
     attacker.attackCooldown -= dt;
     if (attacker.attackCooldown > 0.0f) return;
@@ -97,7 +214,124 @@ static void TryMeleeAttack(World& world, NPC& attacker, NPC& target, float dt, f
 }
 
 void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
-    if (npc.leaderCaptainId != 0) {
+    if (npc.warAssigned &&
+        npc.warTargetSettlementId >= 0 &&
+        world.IsSettlementAliveAndValid(npc.warTargetSettlementId))
+    {
+        // Defensive mode uses own settlement center as anchor.
+        if (npc.warIsDefender &&
+            npc.settlementId >= 0 &&
+            npc.settlementId < (int)world.settlements.size())
+        {
+            npc.warTargetPos = world.settlements[npc.settlementId].centerPx;
+        }
+        else {
+            npc.warTargetPos = world.settlements[npc.warTargetSettlementId].centerPx;
+        }
+
+        // If enemy combat units are nearby, break formation and fight freely.
+        if (npc.warInBattle) {
+            int localEnemyIndex = FindNearestEnemyCombatNearNpc(world, npc, CELL_SIZE * 9.0f);
+            if (localEnemyIndex != -1) {
+                NPC& enemy = world.npcs[localEnemyIndex];
+
+                float dx = enemy.pos.x - npc.pos.x;
+                float dy = enemy.pos.y - npc.pos.y;
+                float d2 = dx*dx + dy*dy;
+
+                if (d2 <= 18.0f * 18.0f) {
+                    TryMeleeAttack(world, npc, enemy, dt, 0.9f);
+                } else {
+                    MoveTowards(npc, enemy.pos, dt);
+                }
+                return;
+            }
+
+            Vector2 searchPos = {
+                npc.pos.x + (float)((npc.id % 3) - 1) * CELL_SIZE * 0.8f,
+                npc.pos.y + (float)(((npc.id / 3) % 3) - 1) * CELL_SIZE * 0.8f
+            };
+            MoveTowards(npc, searchPos, dt, 0.8f);
+            return;
+        }
+
+        // Keep cohesion only when not in active battle.
+        if (npc.warCaptainId != 0) {
+            NPC* captain = world.FindNpcById(npc.warCaptainId);
+            if (captain && captain->alive && !captain->isDying) {
+                float dxCap = captain->pos.x - npc.pos.x;
+                float dyCap = captain->pos.y - npc.pos.y;
+                float d2Cap = dxCap*dxCap + dyCap*dyCap;
+
+                if (d2Cap > CELL_SIZE * CELL_SIZE * 5.0f) {
+                    MoveTowards(npc, captain->pos, dt);
+                    return;
+                }
+            }
+        }
+
+        // Normal war target acquisition while approaching.
+        int enemyIndex = FindNearestEnemyNpcForSettlementWar(world, npc, npc.warTargetSettlementId, CELL_SIZE * 26.0f);
+        if (enemyIndex != -1) {
+            NPC& enemy = world.npcs[enemyIndex];
+
+            float dx = enemy.pos.x - npc.pos.x;
+            float dy = enemy.pos.y - npc.pos.y;
+            float d2 = dx*dx + dy*dy;
+
+            if (d2 <= 18.0f * 18.0f) {
+                TryMeleeAttack(world, npc, enemy, dt, 0.9f);
+            } else {
+                MoveTowards(npc, enemy.pos, dt);
+            }
+
+            return;
+        }
+
+        // If enemy troops are gone, attack the barracks.
+        if (!world.SettlementHasLivingCombatUnits(npc.warTargetSettlementId)) {
+            const Settlement& targetSettlement = world.settlements[npc.warTargetSettlementId];
+            int barracksIndex = FindNearestAliveBarracksIndex(targetSettlement, npc.pos);
+            if (barracksIndex != -1) {
+                const Barracks& targetBarracks = targetSettlement.barracksList[barracksIndex];
+
+                float dx = targetBarracks.posPx.x - npc.pos.x;
+                float dy = targetBarracks.posPx.y - npc.pos.y;
+                float d2 = dx*dx + dy*dy;
+
+                if (d2 <= 22.0f * 22.0f) {
+                    npc.attackCooldown -= dt;
+                    if (npc.attackCooldown <= 0.0f) {
+                        world.BeginNpcAttack(npc, targetBarracks.posPx);
+                        world.DamageSettlementBarracks(npc.warTargetSettlementId, barracksIndex, npc.damage);
+                        npc.attackCooldown = 0.9f;
+                    }
+                } else {
+                    MoveTowards(npc, targetBarracks.posPx, dt);
+                }
+                return;
+            }
+        }
+
+        // Continue advancing toward the war target.
+        float dx = npc.warTargetPos.x - npc.pos.x;
+        float dy = npc.warTargetPos.y - npc.pos.y;
+        float dist2 = dx*dx + dy*dy;
+
+        if (dist2 > CELL_SIZE * CELL_SIZE * 1.5f) {
+            MoveTowards(npc, npc.warTargetPos, dt);
+        } else {
+            Vector2 pressurePos = {
+                npc.warTargetPos.x + (float)((npc.id % 3) - 1) * CELL_SIZE * 0.9f,
+                npc.warTargetPos.y + (float)(((npc.id / 3) % 3) - 1) * CELL_SIZE * 0.9f
+            };
+            MoveTowards(npc, pressurePos, dt);
+        }
+
+        return;
+    }
+
+    if (npc.leaderCaptainId != 0 && !npc.warAssigned) {
         NPC* cap = world.FindNpcById(npc.leaderCaptainId);
 
         if (!cap || !cap->alive) {
@@ -134,7 +368,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     // =========================================================
     // 1) FOLLOW CAPTAIN — highest priority for attached warriors
     // =========================================================
-    if (npc.leaderCaptainId != 0) {
+    if (npc.leaderCaptainId != 0 && !npc.warAssigned) {
         NPC* cap = world.FindNpcById(npc.leaderCaptainId);
 
         if (!cap || !cap->alive || cap->humanRole != NPC::HumanRole::CAPTAIN) {

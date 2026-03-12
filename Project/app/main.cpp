@@ -10,9 +10,9 @@ enum class AppState
     PAUSED
 };
 
-enum class SpawnMode { CIVILIAN, WARRIOR };
+enum class SpawnMode { CIVILIAN, WARRIOR, BUILD_BARRACKS };
 enum class WarriorRank { WARRIOR, CAPTAIN };
-enum class ToolMode { NONE, KILL };
+enum class ToolMode { NONE, KILL, WAR };
 
 static void ApplyBorderlessFullscreen() {
     int monitor = GetCurrentMonitor();
@@ -91,6 +91,19 @@ static int PickAnyNpcIndex(const World& world, Vector2 mouseWorld, float radius)
     return best;
 }
 
+static int PickSettlementIndexAtWorldPos(const World& world, Vector2 mouseWorld)
+{
+    for (int i = 0; i < (int)world.settlements.size(); i++) {
+        const Settlement& s = world.settlements[i];
+        if (!s.alive) continue;
+
+        if (CheckCollisionPointRec(mouseWorld, s.boundsPx)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 static const Texture2D* GetCurrentModeIcon(const World& world,
                                            SpawnMode mode,
                                            WarriorRank warriorRank,
@@ -103,6 +116,16 @@ static const Texture2D* GetCurrentModeIcon(const World& world,
     if (toolsOpen && toolMode == ToolMode::KILL) {
         loaded = world.npcTexBanditLoaded[0];
         return &world.npcTexBandit[0];
+    }
+
+    if (toolsOpen && toolMode == ToolMode::WAR) {
+        loaded = world.npcTexCaptainLoaded[0];
+        return &world.npcTexCaptain[0];
+    }
+
+    if (!toolsOpen && mode == SpawnMode::BUILD_BARRACKS) {
+        loaded = world.barracksTexLoaded;
+        return &world.barracksTex;
     }
 
     if (mode == SpawnMode::CIVILIAN) {
@@ -140,6 +163,7 @@ int main() {
     WarriorRank warriorRank = WarriorRank::WARRIOR;
     bool toolsOpen = false;
     ToolMode toolMode = ToolMode::NONE;
+    int pendingWarSettlementA = -1;
     Vector2 lastMouse = GetMousePosition();
 
     while (!WindowShouldClose()) {
@@ -236,6 +260,7 @@ int main() {
                 if (IsKeyPressed(KEY_ZERO)) {
                     toolsOpen = !toolsOpen;
                     toolMode = toolsOpen ? ToolMode::KILL : ToolMode::NONE;
+                    pendingWarSettlementA = -1;
                 }
 
                 if (!toolsOpen) {
@@ -248,6 +273,10 @@ int main() {
                         warriorRank = WarriorRank::WARRIOR;
                     }
 
+                    if (IsKeyPressed(KEY_NINE)) {
+                        mode = SpawnMode::BUILD_BARRACKS;
+                    }
+
                     if (mode == SpawnMode::WARRIOR && IsKeyPressed(KEY_K)) {
                         warriorRank = (warriorRank == WarriorRank::WARRIOR)
                                       ? WarriorRank::CAPTAIN
@@ -256,6 +285,11 @@ int main() {
                 } else {
                     if (IsKeyPressed(KEY_ONE)) {
                         toolMode = ToolMode::KILL;
+                        pendingWarSettlementA = -1;
+                    }
+                    if (IsKeyPressed(KEY_TWO)) {
+                        toolMode = ToolMode::WAR;
+                        pendingWarSettlementA = -1;
                     }
                 }
 
@@ -335,6 +369,20 @@ int main() {
                                     world.BeginNpcDeath(world.npcs[clickedNpc]);
                                 }
                             }
+                            else if (toolsOpen && toolMode == ToolMode::WAR) {
+                                int clickedSettlement = PickSettlementIndexAtWorldPos(world, mouseWorld);
+                                if (clickedSettlement != -1) {
+                                    if (pendingWarSettlementA == -1) {
+                                        pendingWarSettlementA = clickedSettlement;
+                                    } else if (pendingWarSettlementA != clickedSettlement) {
+                                        world.StartSettlementWar(pendingWarSettlementA, clickedSettlement);
+                                        pendingWarSettlementA = -1;
+                                    }
+                                }
+                            }
+                            else if (mode == SpawnMode::BUILD_BARRACKS) {
+                                world.TryBuildBarracksAt(mouseWorld);
+                            }
                             else if (mode == SpawnMode::CIVILIAN) {
                                 world.SpawnCivilian(mouseWorld);
                             } else if (mode == SpawnMode::WARRIOR) {
@@ -362,6 +410,69 @@ int main() {
 
             BeginMode2D(camera);
             world.Draw();
+
+            if (!toolsOpen && mode == SpawnMode::BUILD_BARRACKS) {
+                Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), camera);
+                int tileX = (int)(mouseWorld.x / CELL_SIZE);
+                int tileY = (int)(mouseWorld.y / CELL_SIZE);
+                bool canBuild = false;
+                Vector2 previewPos = {
+                    (tileX + 0.5f) * CELL_SIZE,
+                    (tileY + 0.5f) * CELL_SIZE
+                };
+
+                if (tileX >= 0 && tileX < world.cols && tileY >= 0 && tileY < world.rows) {
+                    int tileId = tileY * world.cols + tileX;
+
+                    for (const auto& s : world.settlements) {
+                        if (!s.alive) continue;
+                        if (!world.PointInSettlementPx(s, mouseWorld)) continue;
+
+                        float dxFire = mouseWorld.x - s.campfirePosPx.x;
+                        float dyFire = mouseWorld.y - s.campfirePosPx.y;
+                        float fireDist2 = dxFire * dxFire + dyFire * dyFire;
+                        if (fireDist2 < (CELL_SIZE * 5.0f) * (CELL_SIZE * 5.0f)) break;
+
+                        if (s.tiles.find(tileId) == s.tiles.end()) break;
+
+                        bool overlapsBarracks = false;
+                        Vector2 snappedPos = {
+                            (tileX + 0.5f) * CELL_SIZE,
+                            (tileY + 0.5f) * CELL_SIZE
+                        };
+                        for (const auto& b : s.barracksList) {
+                            if (!b.alive) continue;
+
+                            float dx = snappedPos.x - b.posPx.x;
+                            float dy = snappedPos.y - b.posPx.y;
+                            float d2 = dx * dx + dy * dy;
+                            if (d2 < (CELL_SIZE * 4.0f) * (CELL_SIZE * 4.0f)) {
+                                overlapsBarracks = true;
+                                break;
+                            }
+                        }
+                        if (overlapsBarracks) break;
+
+                        canBuild = true;
+                        break;
+                    }
+                }
+
+                Color previewColor = canBuild
+                                     ? Color{255, 220, 120, 220}
+                                     : Color{255, 100, 100, 220};
+                float previewSize = CELL_SIZE * 1.6f;
+                DrawRectangleLinesEx(
+                    Rectangle{
+                        floorf(previewPos.x - previewSize * 0.5f),
+                        floorf(previewPos.y - previewSize * 0.5f),
+                        previewSize,
+                        previewSize
+                    },
+                    2.0f,
+                    previewColor
+                );
+            }
             EndMode2D();
 
             int iconX = 20;
@@ -388,13 +499,38 @@ int main() {
             const char* modeStr = toolsOpen
                     ? "Mode: 0 TOOLS"
                     : ((mode == SpawnMode::CIVILIAN) ? "Mode: 1 CIVILIAN"
-                                                     : "Mode: 2 WARRIOR");
+                       : (mode == SpawnMode::WARRIOR) ? "Mode: 2 WARRIOR"
+                                                      : "Mode: 9 BUILD BARRACKS");
 
             DrawText(modeStr, uiX, uiY, 20, RAYWHITE);
             uiY += spacing;
 
             if (toolsOpen) {
-                DrawText("Tool: 1 KILL NPC", uiX, uiY, 20, Color{255, 170, 170, 255});
+                const char* toolStr =
+                        (toolMode == ToolMode::KILL) ? "Tool: 1 KILL NPC" :
+                        (toolMode == ToolMode::WAR)  ? "Tool: 2 WAR" :
+                                                       "Tool: NONE";
+                Color toolColor =
+                        (toolMode == ToolMode::KILL) ? Color{255, 170, 170, 255} :
+                        (toolMode == ToolMode::WAR)  ? Color{255, 210, 120, 255} :
+                                                       RAYWHITE;
+
+                DrawText(toolStr, uiX, uiY, 20, toolColor);
+                uiY += spacing;
+
+                if (toolMode == ToolMode::WAR) {
+                    if (pendingWarSettlementA == -1) {
+                        DrawText("Select first settlement", uiX, uiY, 18, Color{255, 230, 180, 255});
+                    } else {
+                        DrawText("Select second settlement", uiX, uiY, 18, Color{255, 230, 180, 255});
+                    }
+                    uiY += spacing;
+                }
+            }
+            else if (mode == SpawnMode::BUILD_BARRACKS) {
+                DrawText("Build: click inside settlement", uiX, uiY, 20, Color{255, 220, 120, 255});
+                uiY += spacing;
+                DrawText("Needs free spot away from campfire", uiX, uiY, 18, Color{255, 220, 120, 255});
                 uiY += spacing;
             }
             else if (mode == SpawnMode::WARRIOR) {
@@ -409,7 +545,7 @@ int main() {
             const char* t1="Shift+LMB Captain: Select";
             const char* t2="Shift+LMB Ground: Move selected captain";
             const char* t3="Shift+LMB Bandit: Attack whole bandit group";
-            const char* t4="0: Tools | 1/2: Spawn modes | A: AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
+            const char* t4="0: Tools | Tools: 1 Kill, 2 War | 9: Build Barracks | A: AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
 
             DrawText(t1, uiX, uiY, 20, RAYWHITE); uiY += spacing;
             DrawText(t2, uiX, uiY, 20, RAYWHITE); uiY += spacing;

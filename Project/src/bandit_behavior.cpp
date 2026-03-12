@@ -162,10 +162,6 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
                     world.BeginNpcDeath(other);
                 }
             }
-            if (other.hp <= 0.0f) {
-                other.hp = 0.0f;
-                world.BeginNpcDeath(other);
-            }
         }
     }
 }

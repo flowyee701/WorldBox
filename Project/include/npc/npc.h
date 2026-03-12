@@ -122,4 +122,21 @@ struct NPC {
     bool isDying = false;
     float deathTimer = 0.0f;
     float deathDuration = 0.65f;
+
+    // -------------------------------------------------
+    // Settlement war assignment
+    // -------------------------------------------------
+    bool warAssigned = false;
+    int warFromSettlementId = -1;
+    int warTargetSettlementId = -1;
+    bool warMarching = false;
+    Vector2 warTargetPos{0.0f, 0.0f};
+
+    // squad formation for settlement war
+    uint32_t warCaptainId = 0;
+    int warSquadIndex = -1;
+    bool warIsDefender = false;
+    bool warReady = false;
+    bool warInBattle = false;
+    float warBattleLockTimer = 0.0f;
 };
