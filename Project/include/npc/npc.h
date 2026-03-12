@@ -137,4 +137,6 @@ struct NPC {
     int warSquadIndex = -1;
     bool warIsDefender = false;
     bool warReady = false;
+    bool warInBattle = false;
+    float warBattleLockTimer = 0.0f;
 };

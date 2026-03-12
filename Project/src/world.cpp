@@ -130,6 +130,81 @@ static bool IsCombatHumanRole(NPC::HumanRole role) {
     return role == NPC::HumanRole::WARRIOR || role == NPC::HumanRole::CAPTAIN;
 }
 
+static bool IsCombatRoleForWar(NPC::HumanRole role) {
+    return role == NPC::HumanRole::WARRIOR || role == NPC::HumanRole::CAPTAIN;
+}
+
+static bool IsCombatHumanRoleForBattle(NPC::HumanRole role) {
+    return role == NPC::HumanRole::WARRIOR || role == NPC::HumanRole::CAPTAIN;
+}
+
+static int CountEnemyCombatUnitsNearNpc(const World& world, const NPC& npc, float radiusPx) {
+    float radius2 = radiusPx * radiusPx;
+    int count = 0;
+
+    for (const auto& other : world.npcs) {
+        if (!other.alive || other.isDying) continue;
+        if (!IsCombatHumanRoleForBattle(other.humanRole)) continue;
+        if (other.settlementId == npc.settlementId) continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 <= radius2) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+static int FindNearestEnemyCombatNearNpc(World& world, const NPC& npc, float radiusPx) {
+    float bestD2 = radiusPx * radiusPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.settlementId == npc.settlementId) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static bool IsEnemyCombatNearNpc(const World& world, const NPC& npc, float radiusPx) {
+    float radius2 = radiusPx * radiusPx;
+
+    for (const auto& other : world.npcs) {
+        if (!other.alive || other.isDying) continue;
+        if (!IsCombatHumanRoleForBattle(other.humanRole)) continue;
+        if (other.settlementId == npc.settlementId) continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 <= radius2) return true;
+    }
+
+    return false;
+}
+
 static bool IsCombatNpc(const NPC& npc) {
     return npc.humanRole == NPC::HumanRole::WARRIOR || npc.humanRole == NPC::HumanRole::CAPTAIN;
 }
@@ -245,10 +320,7 @@ static int FindNearestEnemyNpcForSettlementWar(World& world, const NPC& attacker
         if (!other.alive || other.isDying) continue;
         if (other.id == attacker.id) continue;
 
-        // If a concrete enemy settlement is known, prefer it.
-        // For defenders, we may still need to attack any hostile troop nearby,
-        // so fallback search below is important.
-        if (enemySettlementId >= 0 && other.settlementId != enemySettlementId) continue;
+        if (other.settlementId != enemySettlementId) continue;
 
         int priority = 999;
         if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
@@ -264,6 +336,45 @@ static int FindNearestEnemyNpcForSettlementWar(World& world, const NPC& attacker
 
         if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
             bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static bool IsBarracksInAttackRange(const Settlement& s, Vector2 pos, float rangePx)
+{
+    if (!s.alive) return false;
+
+    float range2 = rangePx * rangePx;
+    for (const auto& b : s.barracksList) {
+        if (!b.alive || b.hp <= 0.0f) continue;
+
+        float dx = b.posPx.x - pos.x;
+        float dy = b.posPx.y - pos.y;
+        if ((dx*dx + dy*dy) <= range2) return true;
+    }
+
+    return false;
+}
+
+static int FindNearestAliveBarracksIndex(const Settlement& s, Vector2 fromPos)
+{
+    float bestD2 = 1e30f;
+    int bestIndex = -1;
+
+    for (int i = 0; i < (int)s.barracksList.size(); i++) {
+        const Barracks& b = s.barracksList[i];
+        if (!b.alive) continue;
+        if (b.hp <= 0.0f) continue;
+
+        float dx = b.posPx.x - fromPos.x;
+        float dy = b.posPx.y - fromPos.y;
+        float d2 = dx * dx + dy * dy;
+
+        if (d2 < bestD2) {
             bestD2 = d2;
             bestIndex = i;
         }
@@ -508,18 +619,95 @@ void World::UpdateBarracks()
 {
     for (auto& s : settlements) {
         if (!s.alive) continue;
-        if (s.hasBarracks) continue;
-        if (s.sourceSettlementCount < 3) continue;
 
-        Vector2 avoid = s.campfirePosPx;
-        if (avoid.x == 0.0f && avoid.y == 0.0f) {
-            avoid = s.centerPx;
+        int desiredAutoBarracks = s.sourceSettlementCount / 3;
+        if (desiredAutoBarracks <= 0) continue;
+
+        int aliveBarracksCount = 0;
+        for (const auto& b : s.barracksList) {
+            if (b.alive) {
+                aliveBarracksCount++;
+            }
         }
 
-        s.barracksPosPx = PickRandomSettlementTileFarFrom(*this, s, avoid, CELL_SIZE * 7.0f);
-        s.hasBarracks = true;
-        s.barracksWarriorTimer = 10.0f;
-        s.barracksCaptainTimer = 150.0f;
+        while (aliveBarracksCount < desiredAutoBarracks) {
+            Vector2 avoid = s.campfirePosPx;
+            if (avoid.x == 0.0f && avoid.y == 0.0f) {
+                avoid = s.centerPx;
+            }
+
+            Vector2 candidatePos = PickRandomSettlementTileFarFrom(*this, s, avoid, CELL_SIZE * 7.0f);
+
+            bool overlaps = false;
+            for (const auto& existing : s.barracksList) {
+                if (!existing.alive) continue;
+
+                float dx = candidatePos.x - existing.posPx.x;
+                float dy = candidatePos.y - existing.posPx.y;
+                float d2 = dx * dx + dy * dy;
+                if (d2 < (CELL_SIZE * 4.0f) * (CELL_SIZE * 4.0f)) {
+                    overlaps = true;
+                    break;
+                }
+            }
+
+            if (overlaps) {
+                bool found = false;
+                std::vector<int> settlementTiles;
+                settlementTiles.reserve(s.tiles.size());
+                for (int tile : s.tiles) {
+                    settlementTiles.push_back(tile);
+                }
+
+                for (int attempt = 0; attempt < 24 && !found; attempt++) {
+                    if (settlementTiles.empty()) break;
+
+                    int pickIndex = GetRandomValue(0, (int)settlementTiles.size() - 1);
+                    int tileId = settlementTiles[pickIndex];
+                    Vector2 p = TileIdToCenterPx(*this, tileId);
+
+                    float dxFire = p.x - s.campfirePosPx.x;
+                    float dyFire = p.y - s.campfirePosPx.y;
+                    float fireD2 = dxFire * dxFire + dyFire * dyFire;
+                    if (fireD2 < (CELL_SIZE * 5.0f) * (CELL_SIZE * 5.0f)) {
+                        continue;
+                    }
+
+                    bool localOverlap = false;
+                    for (const auto& existing : s.barracksList) {
+                        if (!existing.alive) continue;
+
+                        float dx = p.x - existing.posPx.x;
+                        float dy = p.y - existing.posPx.y;
+                        float d2 = dx * dx + dy * dy;
+                        if (d2 < (CELL_SIZE * 4.0f) * (CELL_SIZE * 4.0f)) {
+                            localOverlap = true;
+                            break;
+                        }
+                    }
+
+                    if (!localOverlap) {
+                        candidatePos = p;
+                        found = true;
+                    }
+                }
+
+                if (!found) {
+                    break;
+                }
+            }
+
+            Barracks b;
+            b.alive = true;
+            b.posPx = candidatePos;
+            b.maxHp = 600.0f;
+            b.hp = b.maxHp;
+            b.warriorTimer = 10.0f;
+            b.captainTimer = 150.0f;
+
+            s.barracksList.push_back(b);
+            aliveBarracksCount++;
+        }
     }
 }
 
@@ -528,21 +716,25 @@ void World::UpdateBarracksProduction(float dt)
     for (int i = 0; i < (int)settlements.size(); i++) {
         Settlement& s = settlements[i];
         if (!s.alive) continue;
-        if (!s.hasBarracks) continue;
 
-        s.barracksWarriorTimer -= dt;
-        s.barracksCaptainTimer -= dt;
+        for (auto& b : s.barracksList) {
+            if (!b.alive) continue;
+            if (b.hp <= 0.0f) continue;
 
-        while (s.barracksWarriorTimer <= 0.0f) {
-            Vector2 spawnPos = { s.barracksPosPx.x, s.barracksPosPx.y + CELL_SIZE * 1.2f };
-            SpawnProducedWarrior(*this, i, spawnPos);
-            s.barracksWarriorTimer += 10.0f;
-        }
+            b.warriorTimer -= dt;
+            b.captainTimer -= dt;
 
-        while (s.barracksCaptainTimer <= 0.0f) {
-            Vector2 spawnPos = { s.barracksPosPx.x, s.barracksPosPx.y + CELL_SIZE * 1.2f };
-            SpawnProducedCaptain(*this, i, spawnPos);
-            s.barracksCaptainTimer += 150.0f;
+            while (b.warriorTimer <= 0.0f) {
+                Vector2 spawnPos = { b.posPx.x, b.posPx.y + CELL_SIZE * 1.2f };
+                SpawnProducedWarrior(*this, i, spawnPos);
+                b.warriorTimer += 10.0f;
+            }
+
+            while (b.captainTimer <= 0.0f) {
+                Vector2 spawnPos = { b.posPx.x, b.posPx.y + CELL_SIZE * 1.2f };
+                SpawnProducedCaptain(*this, i, spawnPos);
+                b.captainTimer += 150.0f;
+            }
         }
     }
 }
@@ -556,6 +748,40 @@ bool World::PointInSettlementPx(const Settlement& s, Vector2 pos) const {
 
     int tileId = cy * cols + cx;
     return s.tiles.find(tileId) != s.tiles.end();
+}
+
+bool World::SettlementHasLivingCombatUnits(int settlementId) const
+{
+    if (settlementId < 0 || settlementId >= (int)settlements.size()) return false;
+    if (!settlements[settlementId].alive) return false;
+
+    for (const auto& npc : npcs) {
+        if (!npc.alive || npc.isDying) continue;
+        if (npc.settlementId != settlementId) continue;
+        if (!IsCombatRoleForWar(npc.humanRole)) continue;
+        return true;
+    }
+    return false;
+}
+
+void World::DamageSettlementBarracks(int settlementId, int barracksIndex, float damage)
+{
+    if (settlementId < 0 || settlementId >= (int)settlements.size()) return;
+
+    Settlement& s = settlements[settlementId];
+    if (!s.alive) return;
+    if (barracksIndex < 0 || barracksIndex >= (int)s.barracksList.size()) return;
+
+    Barracks& b = s.barracksList[barracksIndex];
+    if (!b.alive) return;
+    if (b.hp <= 0.0f) return;
+
+    b.hp -= damage;
+    if (b.hp <= 0.0f) {
+        b.hp = 0.0f;
+        b.maxHp = 0.0f;
+        b.alive = false;
+    }
 }
 
 Vector2 World::ComputeSettlementCenterPx(const Settlement& s) {
@@ -634,16 +860,12 @@ void World::MergeSettlementsIfNeeded() {
 
             settlements[i].sourceSettlementCount += settlements[j].sourceSettlementCount;
 
-            if (!settlements[i].hasBarracks && settlements[j].hasBarracks) {
-                settlements[i].hasBarracks = true;
-                settlements[i].barracksPosPx = settlements[j].barracksPosPx;
-                settlements[i].barracksWarriorTimer = settlements[j].barracksWarriorTimer;
-                settlements[i].barracksCaptainTimer = settlements[j].barracksCaptainTimer;
-            }
+            settlements[i].barracksList.insert(settlements[i].barracksList.end(),
+                                               settlements[j].barracksList.begin(),
+                                               settlements[j].barracksList.end());
 
             settlements[j].tiles.clear();
-            settlements[j].hasBarracks = false;
-            settlements[j].barracksPosPx = {0.0f, 0.0f};
+            settlements[j].barracksList.clear();
             settlements[j].alive = false;
 
             settlements[i].centerPx = ComputeSettlementCenterPx(settlements[i]);
@@ -716,10 +938,6 @@ void World::SpawnCivilian(Vector2 pos) {
             Settlement s;
             s.alive = true;
             s.sourceSettlementCount = 1;
-            s.hasBarracks = false;
-            s.barracksPosPx = {0.0f, 0.0f};
-            s.barracksWarriorTimer = 10.0f;
-            s.barracksCaptainTimer = 150.0f;
 
             int cx = (int)(pos.x / CELL_SIZE);
             int cy = (int)(pos.y / CELL_SIZE);
@@ -831,6 +1049,63 @@ const NPC* World::FindNpcById(uint32_t id) const {
     return nullptr;
 }
 
+bool World::TryBuildBarracksAt(Vector2 worldPos)
+{
+    for (auto& s : settlements) {
+        if (!s.alive) continue;
+        if (!PointInSettlementPx(s, worldPos)) continue;
+
+        float dxFire = worldPos.x - s.campfirePosPx.x;
+        float dyFire = worldPos.y - s.campfirePosPx.y;
+        float fireDist2 = dxFire * dxFire + dyFire * dyFire;
+        if (fireDist2 < (CELL_SIZE * 5.0f) * (CELL_SIZE * 5.0f)) {
+            return false;
+        }
+
+        int tileX = (int)(worldPos.x / CELL_SIZE);
+        int tileY = (int)(worldPos.y / CELL_SIZE);
+
+        if (tileX < 0 || tileX >= cols || tileY < 0 || tileY >= rows) {
+            return false;
+        }
+
+        int tileId = tileY * cols + tileX;
+        if (s.tiles.find(tileId) == s.tiles.end()) {
+            return false;
+        }
+
+        Vector2 snappedPos = {
+            (tileX + 0.5f) * CELL_SIZE,
+            (tileY + 0.5f) * CELL_SIZE
+        };
+
+        for (const auto& b : s.barracksList) {
+            if (!b.alive) continue;
+
+            float dx = snappedPos.x - b.posPx.x;
+            float dy = snappedPos.y - b.posPx.y;
+            float d2 = dx * dx + dy * dy;
+            if (d2 < (CELL_SIZE * 4.0f) * (CELL_SIZE * 4.0f)) {
+                return false;
+            }
+        }
+
+        Barracks b;
+        b.alive = true;
+        b.posPx = snappedPos;
+        b.maxHp = 600.0f;
+        b.hp = b.maxHp;
+        b.warriorTimer = 10.0f;
+        b.captainTimer = 150.0f;
+
+        s.barracksList.push_back(b);
+
+        return true;
+    }
+
+    return false;
+}
+
 bool World::IsSettlementAliveAndValid(int settlementId) const
 {
     return settlementId >= 0 &&
@@ -893,6 +1168,8 @@ void World::StopSettlementWar(int settlementId)
             npc.warSquadIndex = -1;
             npc.warIsDefender = false;
             npc.warReady = false;
+            npc.warInBattle = false;
+            npc.warBattleLockTimer = 0.0f;
         }
     }
 
@@ -917,6 +1194,8 @@ void World::StopSettlementWar(int settlementId)
                 npc.warSquadIndex = -1;
                 npc.warIsDefender = false;
                 npc.warReady = false;
+                npc.warInBattle = false;
+                npc.warBattleLockTimer = 0.0f;
             }
         }
     }
@@ -1076,6 +1355,14 @@ void World::UpdateSettlementWarAssignments()
             captain.warIsDefender = false;
             captain.warReady = true;
 
+            // Settlement war must not be blocked by stale player/manual state.
+            captain.manualControl = false;
+            captain.hasMoveTarget = false;
+            captain.captainHasMoveOrder = false;
+            captain.captainHasAttackOrder = false;
+            captain.captainAttackGroupId = -1;
+            captain.captainAttackTargetId = 0;
+
             launchedUnits++;
 
             int assignedToCaptain = 0;
@@ -1130,18 +1417,17 @@ void World::UpdateSettlementDefense(float dt)
     (void)dt;
 
     RefreshSettlementWarSquads();
-    const float defenseRadius = CELL_SIZE * 10.0f;
 
     for (int sid = 0; sid < (int)settlements.size(); sid++) {
         Settlement& s = settlements[sid];
         if (!s.alive) continue;
         if (!s.warActive) continue;
 
-        bool underAttack = IsEnemySettlementTroopNearSettlement(*this, sid, defenseRadius);
+        bool underAttack = IsEnemySettlementTroopNearSettlement(*this, sid, CELL_SIZE * 20.0f);
         s.defensiveMobilization = underAttack;
 
         if (!underAttack) {
-            // Release defenders that are no longer needed.
+            // Release only defender state when danger is gone.
             for (auto& npc : npcs) {
                 if (!npc.alive || npc.isDying) continue;
                 if (!npc.warAssigned) continue;
@@ -1150,26 +1436,26 @@ void World::UpdateSettlementDefense(float dt)
 
                 npc.warAssigned = false;
                 npc.warMarching = false;
-                npc.warTargetPos = {0.0f, 0.0f};
                 npc.warTargetSettlementId = -1;
+                npc.warTargetPos = {0.0f, 0.0f};
                 npc.warIsDefender = false;
+                npc.warInBattle = false;
+                npc.warBattleLockTimer = 0.0f;
             }
             continue;
         }
 
-        int hostileIndex = FindNearestHostileTroopNearSettlement(*this, sid, s.centerPx, defenseRadius);
+        int hostileIndex = FindNearestHostileTroopNearSettlement(*this, sid, s.centerPx, CELL_SIZE * 20.0f);
         if (hostileIndex == -1) continue;
 
         int targetEnemySettlement = npcs[hostileIndex].settlementId;
         if (targetEnemySettlement < 0) continue;
 
-        // Mobilize ALL valid ready squads for defense, not just one pass that may miss units.
+        // Mobilize all available captains first.
         for (auto& captain : npcs) {
             if (!captain.alive || captain.isDying) continue;
             if (captain.settlementId != sid) continue;
             if (captain.humanRole != NPC::HumanRole::CAPTAIN) continue;
-            if (captain.warSquadIndex < 0) continue;
-            if (captain.warAssigned && !captain.warIsDefender) continue;
 
             captain.warAssigned = true;
             captain.warFromSettlementId = sid;
@@ -1179,21 +1465,28 @@ void World::UpdateSettlementDefense(float dt)
             captain.warIsDefender = true;
             captain.warReady = true;
 
-            for (auto& warrior : npcs) {
-                if (!warrior.alive || warrior.isDying) continue;
-                if (warrior.settlementId != sid) continue;
-                if (warrior.humanRole != NPC::HumanRole::WARRIOR) continue;
-                if (warrior.warCaptainId != captain.id) continue;
-                if (warrior.warAssigned && !warrior.warIsDefender) continue;
+            // Settlement defense must not be blocked by stale player/manual state.
+            captain.manualControl = false;
+            captain.hasMoveTarget = false;
+            captain.captainHasMoveOrder = false;
+            captain.captainHasAttackOrder = false;
+            captain.captainAttackGroupId = -1;
+            captain.captainAttackTargetId = 0;
+        }
 
-                warrior.warAssigned = true;
-                warrior.warFromSettlementId = sid;
-                warrior.warTargetSettlementId = targetEnemySettlement;
-                warrior.warMarching = false;
-                warrior.warTargetPos = s.centerPx;
-                warrior.warIsDefender = true;
-                warrior.warReady = true;
-            }
+        // Mobilize all available warriors too, even if captain link is absent or broken.
+        for (auto& warrior : npcs) {
+            if (!warrior.alive || warrior.isDying) continue;
+            if (warrior.settlementId != sid) continue;
+            if (warrior.humanRole != NPC::HumanRole::WARRIOR) continue;
+
+            warrior.warAssigned = true;
+            warrior.warFromSettlementId = sid;
+            warrior.warTargetSettlementId = targetEnemySettlement;
+            warrior.warMarching = false;
+            warrior.warTargetPos = s.centerPx;
+            warrior.warIsDefender = true;
+            warrior.warReady = true;
         }
     }
 }
@@ -1203,6 +1496,30 @@ void World::UpdateSettlementWars(float dt)
     UpdateSettlementWarPreparation(dt);
     UpdateSettlementDefense(dt);
     const float defenseRadius = CELL_SIZE * 10.0f;
+
+    for (auto& npc : npcs) {
+        if (!npc.alive || npc.isDying) continue;
+
+        if (npc.warAssigned) {
+            int localEnemyCombatCount = CountEnemyCombatUnitsNearNpc(*this, npc, CELL_SIZE * 8.0f);
+
+            if (localEnemyCombatCount > 0) {
+                npc.warInBattle = true;
+                npc.warBattleLockTimer = 1.5f;
+            } else if (npc.warBattleLockTimer > 0.0f) {
+                npc.warBattleLockTimer -= dt;
+                if (npc.warBattleLockTimer <= 0.0f) {
+                    npc.warBattleLockTimer = 0.0f;
+                    npc.warInBattle = false;
+                }
+            } else {
+                npc.warInBattle = false;
+            }
+        } else {
+            npc.warInBattle = false;
+            npc.warBattleLockTimer = 0.0f;
+        }
+    }
 
     // Release stale defender assignments if no hostile troops remain near their home settlement.
     for (auto& npc : npcs) {
@@ -1219,6 +1536,8 @@ void World::UpdateSettlementWars(float dt)
             npc.warTargetSettlementId = -1;
             npc.warTargetPos = {0.0f, 0.0f};
             npc.warIsDefender = false;
+            npc.warInBattle = false;
+            npc.warBattleLockTimer = 0.0f;
         }
     }
 
@@ -1299,6 +1618,8 @@ void World::BeginNpcDeath(NPC& npc) {
     npc.warSquadIndex = -1;
     npc.warIsDefender = false;
     npc.warReady = false;
+    npc.warInBattle = false;
+    npc.warBattleLockTimer = 0.0f;
 
     if (selectedCaptainId == npc.id) {
         selectedCaptainId = 0;
@@ -1309,7 +1630,20 @@ void World::BeginNpcDeath(NPC& npc) {
             if (other.leaderCaptainId == npc.id) {
                 other.leaderCaptainId = 0;
                 other.formationSlot = -1;
-                other.inCombat = false;
+
+                // During settlement war, followers must keep fighting and not fall back to idle/home behavior.
+                if (!other.warAssigned) {
+                    other.inCombat = false;
+                }
+            }
+
+            // If the dead captain was the warrior's war captain, detach only the captain reference,
+            // but keep the warrior in war state so he continues fighting.
+            if (other.warCaptainId == npc.id) {
+                other.warCaptainId = 0;
+                other.warReady = true;
+                other.warInBattle = true;
+                other.warBattleLockTimer = 1.5f;
             }
         }
     }
@@ -1630,31 +1964,51 @@ void World::Draw() const {
     // ---- BARRACKS ----
     for (const auto& s : settlements) {
         if (!s.alive) continue;
-        if (!s.hasBarracks) continue;
 
-        float w = (float)CELL_SIZE * 8.0f;
-        float h = (float)CELL_SIZE * 8.0f;
+        for (const auto& b : s.barracksList) {
+            if (!b.alive) continue;
 
-        if (barracksTexLoaded && barracksTex.id != 0) {
-            Rectangle src{0,0,(float)barracksTex.width,(float)barracksTex.height};
+            float w = (float)CELL_SIZE * 8.0f;
+            float h = (float)CELL_SIZE * 8.0f;
 
-            Rectangle dst{
-                    floorf(s.barracksPosPx.x - w * 0.5f),
-                    floorf(s.barracksPosPx.y - h * 0.90f),
-                    w,
-                    h
-            };
-            DrawTexturePro(barracksTex, src, dst, Vector2{0,0}, 0.0f, WHITE);
-        } else {
-            Rectangle base{
-                    floorf(s.barracksPosPx.x - w*0.5f),
-                    floorf(s.barracksPosPx.y - h*0.5f),
-                    w, h
-            };
-            DrawRectangleRec(base, Color{110, 80, 45, 255});
-            DrawRectangleLinesEx(base, 1.0f, BLACK);
-            DrawRectangle((int)(base.x + w * 0.30f), (int)(base.y + h * 0.55f),
-                          (int)(w * 0.40f), (int)(h * 0.25f), Color{70, 45, 20, 255});
+            if (barracksTexLoaded && barracksTex.id != 0) {
+                Rectangle src{0, 0, (float)barracksTex.width, (float)barracksTex.height};
+                Rectangle dst{
+                        floorf(b.posPx.x - w * 0.5f),
+                        floorf(b.posPx.y - h * 0.92f),
+                        w,
+                        h
+                };
+                DrawTexturePro(barracksTex, src, dst, Vector2{0,0}, 0.0f, WHITE);
+            } else {
+                Rectangle base{
+                        floorf(b.posPx.x - w * 0.5f),
+                        floorf(b.posPx.y - h * 0.82f),
+                        w, h
+                };
+                DrawRectangleRec(base, Color{110, 80, 45, 255});
+                DrawRectangleLinesEx(base, 1.0f, BLACK);
+                DrawRectangle((int)(base.x + w * 0.30f), (int)(base.y + h * 0.55f),
+                              (int)(w * 0.40f), (int)(h * 0.25f), Color{70, 45, 20, 255});
+            }
+
+            if (b.maxHp > 0.0f) {
+                float hpRatio = b.hp / b.maxHp;
+                if (hpRatio < 0.0f) hpRatio = 0.0f;
+                if (hpRatio > 1.0f) hpRatio = 1.0f;
+
+                float barW = w * 0.8f;
+                float barH = 4.0f;
+                float barX = floorf(b.posPx.x - barW * 0.5f);
+                float barY = floorf(b.posPx.y - h * 0.95f);
+
+                DrawRectangle((int)barX, (int)barY, (int)barW, (int)barH, Color{40, 20, 20, 220});
+
+                int fillW = (int)floorf(barW * hpRatio);
+                if (fillW > 0) {
+                    DrawRectangle((int)barX, (int)barY, fillW, (int)barH, Color{210, 70, 70, 255});
+                }
+            }
         }
     }
 

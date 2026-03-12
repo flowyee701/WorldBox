@@ -5,6 +5,16 @@
 #include <cmath>
 #include <unordered_set>
 
+struct Barracks {
+    bool alive = true;
+    Vector2 posPx{0, 0};
+
+    float hp = 600.0f;
+    float maxHp = 600.0f;
+
+    float warriorTimer = 10.0f;
+    float captainTimer = 150.0f;
+};
 
 struct Settlement {
     bool alive = true;
@@ -20,10 +30,7 @@ struct Settlement {
 
     // merged settlement progression / barracks
     int sourceSettlementCount = 1;   // starts as 1, grows on merges
-    bool hasBarracks = false;
-    Vector2 barracksPosPx{0,0};
-    float barracksWarriorTimer = 10.0f;
-    float barracksCaptainTimer = 150.0f;
+    std::vector<Barracks> barracksList;
 
     // settlement war state
     bool warActive = false;

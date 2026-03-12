@@ -183,8 +183,63 @@ static int FindNearestEnemyNpcForSettlementWar(World& world, const NPC& attacker
         float dy = other.pos.y - attacker.pos.y;
         float d2 = dx*dx + dy*dy;
 
+        if (d2 > bestD2) continue;
+
         if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
             bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static int FindNearestEnemyCombatNearNpc(World& world, const NPC& npc, float radiusPx) {
+    float bestD2 = radiusPx * radiusPx;
+    int bestIndex = -1;
+    int bestPriority = 999;
+
+    for (int i = 0; i < (int)world.npcs.size(); i++) {
+        const NPC& other = world.npcs[i];
+        if (!other.alive || other.isDying) continue;
+        if (other.settlementId == npc.settlementId) continue;
+
+        int priority = 999;
+        if (other.humanRole == NPC::HumanRole::WARRIOR) priority = 0;
+        else if (other.humanRole == NPC::HumanRole::CAPTAIN) priority = 1;
+        else continue;
+
+        float dx = other.pos.x - npc.pos.x;
+        float dy = other.pos.y - npc.pos.y;
+        float d2 = dx*dx + dy*dy;
+        if (d2 > bestD2) continue;
+
+        if (priority < bestPriority || (priority == bestPriority && d2 < bestD2)) {
+            bestPriority = priority;
+            bestD2 = d2;
+            bestIndex = i;
+        }
+    }
+
+    return bestIndex;
+}
+
+static int FindNearestAliveBarracksIndex(const Settlement& s, Vector2 fromPos)
+{
+    float bestD2 = 1e30f;
+    int bestIndex = -1;
+
+    for (int i = 0; i < (int)s.barracksList.size(); i++) {
+        const Barracks& b = s.barracksList[i];
+        if (!b.alive) continue;
+        if (b.hp <= 0.0f) continue;
+
+        float dx = b.posPx.x - fromPos.x;
+        float dy = b.posPx.y - fromPos.y;
+        float d2 = dx * dx + dy * dy;
+
+        if (d2 < bestD2) {
             bestD2 = d2;
             bestIndex = i;
         }
@@ -350,51 +405,29 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         npc.captainAttackTargetId = 0;
     }
 
-    // 2) MANUAL MODE
-    if (!npc.captainAutoMode) {
-        if (npc.captainHasMoveOrder) {
-            float d2 = Dist2(npc.pos, npc.captainMoveTarget);
-            if (d2 < 10.0f * 10.0f) {
-                npc.captainHasMoveOrder = false;
-                npc.vel = {0, 0};
-            } else {
-                MoveTowards(npc, npc.captainMoveTarget, dt, 1.0f);
-            }
-        } else {
-            npc.vel = {0, 0};
-        }
-
-        int nearBandit = FindNearestBanditInRange(world, npc.pos, 24.0f);
-        if (nearBandit != -1) {
-            TryMeleeAttack(world, npc, world.npcs[nearBandit], dt, 0.75f);
-        }
-
-        return;
-    }
-
+    // 2) SETTLEMENT WAR / DEFENSE
+    // War must take priority over stale MANUAL IDLE state.
     if (npc.warAssigned &&
         npc.warTargetSettlementId >= 0 &&
         world.IsSettlementAliveAndValid(npc.warTargetSettlementId) &&
-        !npc.manualControl &&
         !npc.captainHasMoveOrder &&
         !npc.captainHasAttackOrder)
     {
-        // Defensive captain behavior
         if (npc.warIsDefender &&
             npc.settlementId >= 0 &&
-            npc.settlementId < (int)world.settlements.size()) {
-
+            npc.settlementId < (int)world.settlements.size())
+        {
             npc.warTargetPos = world.settlements[npc.settlementId].centerPx;
+        }
+        else {
+            npc.warTargetPos = world.settlements[npc.warTargetSettlementId].centerPx;
+        }
 
-            int hostileIndex = FindNearestHostileTroopNearSettlement(
-                world,
-                npc.settlementId,
-                world.settlements[npc.settlementId].centerPx,
-                CELL_SIZE * 20.0f
-            );
-
-            if (hostileIndex != -1) {
-                NPC& enemy = world.npcs[hostileIndex];
+        // Captain stops holding formation and just fights nearby enemy combat units.
+        if (npc.warInBattle) {
+            int localEnemyIndex = FindNearestEnemyCombatNearNpc(world, npc, CELL_SIZE * 9.0f);
+            if (localEnemyIndex != -1) {
+                NPC& enemy = world.npcs[localEnemyIndex];
 
                 float dx = enemy.pos.x - npc.pos.x;
                 float dy = enemy.pos.y - npc.pos.y;
@@ -405,22 +438,19 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
                 } else {
                     MoveTowards(npc, enemy.pos, dt);
                 }
-
                 return;
             }
 
-            Vector2 defendPos = {
-                npc.warTargetPos.x + CELL_SIZE * 0.75f,
-                npc.warTargetPos.y - CELL_SIZE * 0.75f
+            Vector2 searchPos = {
+                npc.pos.x + CELL_SIZE * 0.5f,
+                npc.pos.y - CELL_SIZE * 0.5f
             };
-            MoveTowards(npc, defendPos, dt);
+            MoveTowards(npc, searchPos, dt, 0.8f);
             return;
         }
 
-        // Offensive captain behavior
-        npc.warTargetPos = world.settlements[npc.warTargetSettlementId].centerPx;
-
-        int enemyIndex = FindNearestEnemyNpcForSettlementWar(world, npc, npc.warTargetSettlementId, CELL_SIZE * 24.0f);
+        // Approach / regroup mode.
+        int enemyIndex = FindNearestEnemyNpcForSettlementWar(world, npc, npc.warTargetSettlementId, CELL_SIZE * 26.0f);
         if (enemyIndex != -1) {
             NPC& enemy = world.npcs[enemyIndex];
 
@@ -437,6 +467,32 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
             return;
         }
 
+        // If no enemy combat troops remain, attack the barracks.
+        if (!world.SettlementHasLivingCombatUnits(npc.warTargetSettlementId)) {
+            const Settlement& targetSettlement = world.settlements[npc.warTargetSettlementId];
+            int barracksIndex = FindNearestAliveBarracksIndex(targetSettlement, npc.pos);
+            if (barracksIndex != -1) {
+                const Barracks& targetBarracks = targetSettlement.barracksList[barracksIndex];
+
+                float dx = targetBarracks.posPx.x - npc.pos.x;
+                float dy = targetBarracks.posPx.y - npc.pos.y;
+                float d2 = dx*dx + dy*dy;
+
+                if (d2 <= 22.0f * 22.0f) {
+                    npc.attackCooldown -= dt;
+                    if (npc.attackCooldown <= 0.0f) {
+                        world.BeginNpcAttack(npc, targetBarracks.posPx);
+                        world.DamageSettlementBarracks(npc.warTargetSettlementId, barracksIndex, npc.damage);
+                        npc.attackCooldown = 0.85f;
+                    }
+                } else {
+                    MoveTowards(npc, targetBarracks.posPx, dt);
+                }
+                return;
+            }
+        }
+
+        // Continue advancing toward the war target.
         float dx = npc.warTargetPos.x - npc.pos.x;
         float dy = npc.warTargetPos.y - npc.pos.y;
         float dist2 = dx*dx + dy*dy;
@@ -454,7 +510,33 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         return;
     }
 
-    // 3) AUTO MODE
+    // 3) MANUAL MODE
+    if (!npc.captainAutoMode) {
+        if (npc.captainHasMoveOrder) {
+            float d2 = Dist2(npc.pos, npc.captainMoveTarget);
+            if (d2 < 10.0f * 10.0f) {
+                npc.captainHasMoveOrder = false;
+                npc.manualControl = false;
+                npc.hasMoveTarget = false;
+                npc.vel = {0, 0};
+            } else {
+                MoveTowards(npc, npc.captainMoveTarget, dt, 1.0f);
+            }
+        } else {
+            npc.manualControl = false;
+            npc.hasMoveTarget = false;
+            npc.vel = {0, 0};
+        }
+
+        int nearBandit = FindNearestBanditInRange(world, npc.pos, 24.0f);
+        if (nearBandit != -1) {
+            TryMeleeAttack(world, npc, world.npcs[nearBandit], dt, 0.75f);
+        }
+
+        return;
+    }
+
+    // 4) AUTO MODE
     int threatBandit = FindThreatBanditNearSettlement(world, s, npc.pos);
     if (threatBandit != -1) {
         npc.captainHasAttackOrder = true;

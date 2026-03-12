@@ -69,11 +69,14 @@ public:
 
     NPC* FindNpcById(uint32_t id);
     const NPC* FindNpcById(uint32_t id) const;
+    bool TryBuildBarracksAt(Vector2 worldPos);
     void StartSettlementWar(int attackerSettlementId, int targetSettlementId);
     void StopSettlementWar(int settlementId);
     bool IsSettlementAliveAndValid(int settlementId) const;
     void BeginNpcDeath(NPC& npc);
     void BeginNpcAttack(NPC& npc, Vector2 targetPos);
+    bool SettlementHasLivingCombatUnits(int settlementId) const;
+    void DamageSettlementBarracks(int settlementId, int barracksIndex, float damage);
 
     void IssueCaptainMoveOrder(uint32_t captainId, Vector2 targetPx);
 
