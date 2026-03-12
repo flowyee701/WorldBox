@@ -213,12 +213,13 @@ static void TryMeleeAttack(World& world, NPC& attacker, NPC& target, float dt, f
     }
 }
 
+// Updates warrior behavior
 void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     if (npc.warAssigned &&
         npc.warTargetSettlementId >= 0 &&
         world.IsSettlementAliveAndValid(npc.warTargetSettlementId))
     {
-        // Defensive mode uses own settlement center as anchor.
+        // Defensive mode uses own settlement center as anchor
         if (npc.warIsDefender &&
             npc.settlementId >= 0 &&
             npc.settlementId < (int)world.settlements.size())
@@ -229,7 +230,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             npc.warTargetPos = world.settlements[npc.warTargetSettlementId].centerPx;
         }
 
-        // If enemy combat units are nearby, break formation and fight freely.
+        // If enemy combat units are nearby, break formation and fight freely
         if (npc.warInBattle) {
             int localEnemyIndex = FindNearestEnemyCombatNearNpc(world, npc, CELL_SIZE * 9.0f);
             if (localEnemyIndex != -1) {
@@ -255,7 +256,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             return;
         }
 
-        // Keep cohesion only when not in active battle.
+        // Keep cohesion only when not in active battle
         if (npc.warCaptainId != 0) {
             NPC* captain = world.FindNpcById(npc.warCaptainId);
             if (captain && captain->alive && !captain->isDying) {
@@ -270,7 +271,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             }
         }
 
-        // Normal war target acquisition while approaching.
+        // Normal war target acquisition while approaching
         int enemyIndex = FindNearestEnemyNpcForSettlementWar(world, npc, npc.warTargetSettlementId, CELL_SIZE * 26.0f);
         if (enemyIndex != -1) {
             NPC& enemy = world.npcs[enemyIndex];
@@ -288,7 +289,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             return;
         }
 
-        // If enemy troops are gone, attack the barracks.
+        // If enemy troops are gone, attack the barracks
         if (!world.SettlementHasLivingCombatUnits(npc.warTargetSettlementId)) {
             const Settlement& targetSettlement = world.settlements[npc.warTargetSettlementId];
             int barracksIndex = FindNearestAliveBarracksIndex(targetSettlement, npc.pos);
@@ -313,7 +314,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             }
         }
 
-        // Continue advancing toward the war target.
+        // Continue advancing toward the war target
         float dx = npc.warTargetPos.x - npc.pos.x;
         float dy = npc.warTargetPos.y - npc.pos.y;
         float dist2 = dx*dx + dy*dy;
@@ -339,15 +340,12 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             npc.inCombat = false;
         }
         else {
-
-            // капитан больше не атакует — выйти из боя
+            // Leave combat if the leader is no longer attacking
             if (!cap->captainHasAttackOrder) {
                 npc.inCombat = false;
             }
-
         }
     }
-
 
     if (npc.settlementId < 0 || npc.settlementId >= (int)world.settlements.size() ||
         !world.settlements[npc.settlementId].alive) {
@@ -365,9 +363,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
 
     const Settlement& s = world.settlements[npc.settlementId];
 
-    // =========================================================
-    // 1) FOLLOW CAPTAIN — highest priority for attached warriors
-    // =========================================================
+    // Follow the assigned captain when not in settlement war
     if (npc.leaderCaptainId != 0 && !npc.warAssigned) {
         NPC* cap = world.FindNpcById(npc.leaderCaptainId);
 
@@ -410,9 +406,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
         }
     }
 
-    // =========================================================
-    // 2) FREE WARRIOR COMBAT
-    // =========================================================
+    // Handle free warrior combat near bandits
     const float ALERT_R  = 260.0f;
     const float GIVEUP_R = 340.0f;
     const float ALERT_R2  = ALERT_R * ALERT_R;
@@ -448,11 +442,11 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
     if (npc.inCombat) {
         int nearestBandit = FindNearestBanditAny(world, npc.pos, GIVEUP_R);
 
-        // нет врагов — выйти из боя
+        // Leave combat if no valid target remains
         if (nearestBandit == -1) {
             npc.inCombat = false;
             npc.attackCooldown = 0;
-            npc.combatTargetPos = {0,0};
+            npc.combatTargetPos = {0, 0};
             return;
         }
 
@@ -472,9 +466,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
         return;
     }
 
-    // =========================================================
-    // 3) FREE WARRIOR HOME / CAMP BEHAVIOR
-    // =========================================================
+    // Return to camp behavior when idle
     Vector2 camp = s.campfirePosPx;
     if (camp.x == 0.0f && camp.y == 0.0f) camp = s.centerPx;
 
