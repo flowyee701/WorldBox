@@ -1,0 +1,17 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/include/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/include/npc/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/include/environment/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/include/terrain/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/src/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/src/terrain/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/app/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/tests/cmake_install.cmake",
+		"/Users/nikitafarahov/CLionProjects/WorldBox/build/Project/cmake/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
