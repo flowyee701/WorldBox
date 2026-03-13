@@ -20,5 +20,9 @@ if (NOT raylib_FOUND)
     FetchContent_MakeAvailable(raylib)
 endif()
 
-# Добавляем папку Project, как в твоей структуре [cite: 2, 3]
+# Internal modules
 add_subdirectory(Project)
+
+# Assets
+file(COPY "${CMAKE_SOURCE_DIR}/Project/assets"
+    DESTINATION "${CMAKE_BINARY_DIR}")
