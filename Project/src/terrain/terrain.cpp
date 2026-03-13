@@ -78,7 +78,7 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     mountainProps.hasVegetation = true;
     mountainProps.treeChance = 0.1f;
 
-    // ── Snow Peak ──
+
     TileProperties snowProps;
     snowProps.moveSpeed = 0.2f;
     snowProps.canWalk  = true;
