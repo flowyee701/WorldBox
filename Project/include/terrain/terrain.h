@@ -81,6 +81,11 @@ struct TileProperties {
 };
 
 struct Biome {
+    Biome() = default;
+    Biome(std::string name_, Color color_, float minE, float maxE, float minT, float maxT, TileType ground, TileProperties props_)
+        : name(std::move(name_)), color(color_), minElevation(minE), maxElevation(maxE),
+          minTemp(minT), maxTemp(maxT), groundType(ground), props(std::move(props_)) {}
+
     std::string name;
     Color color;
     float minElevation;
@@ -108,6 +113,7 @@ struct Tile {
 
 class Terrain {
 public:
+    Terrain() = default;
     Terrain(int width, int height, unsigned int seed);
     ~Terrain() = default;
 
@@ -124,6 +130,7 @@ public:
     bool canWalk(float worldX, float worldY) const;
     bool canBuild(float worldX, float worldY) const;
     float getDamageAt(float worldX, float worldY) const;
+    float getMoveSpeedAt(float worldX, float worldY) const;
     
     const TileProperties& getTileProperties(int x, int y) const;
     
@@ -140,6 +147,7 @@ public:
 
     const std::vector<Biome>& getBiomes() const { return biomes; }
     int getBiomeCount() const { return (int)biomes.size(); }
+    int getBiomeIndex(float elevation, float moisture, float temperature) const;
 
 private:
     int width;
@@ -148,7 +156,11 @@ private:
     std::vector<Tile> tiles;
     std::vector<Biome> biomes;
 
-    int getBiomeIndex(float elevation, float moisture, float temperature) const;
+    float fade(float t) const;
+    float lerp(float a, float b, float t) const;
+    float grad(int hash, float x, float y) const;
+    float perlinNoise(float x, float y) const;
+    float fbm(float x, float y, int octaves) const;
 
     float distToRegion(int px, int py, int rx1, int ry1, int rx2, int ry2) const;
     void carveRegion(int x1, int y1, int x2, int y2, float edgeFade, int biomeIdx);

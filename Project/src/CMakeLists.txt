@@ -1,4 +1,5 @@
-# Core gameplay library
+# Internal modules
+add_subdirectory(terrain)
 add_library(worldbox_core
         world.cpp
         human_behavior.cpp
@@ -17,3 +18,4 @@ target_include_directories(worldbox_core PUBLIC
 
 # External dependencies
 target_link_libraries(worldbox_core PUBLIC raylib)
+target_link_libraries(worldbox_core PUBLIC terrain_core)

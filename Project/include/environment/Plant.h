@@ -18,7 +18,7 @@ public:
     static Texture2D texTree;
     static bool texturesLoaded;
 
-    Plant(Vector2 pos);
+    Plant(Vector2 pos, float treeChance = 0.5f);
     void Update(float deltaTime);
     void Draw() const;
 };
