@@ -17,6 +17,7 @@ if (NOT raylib_FOUND)
             GIT_TAG        5.0 # Или "master" для самой свежей версии
     )
 
+
     FetchContent_MakeAvailable(raylib)
 endif()
 
