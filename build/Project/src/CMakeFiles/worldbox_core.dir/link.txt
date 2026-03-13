@@ -1,0 +1,2 @@
+/usr/bin/ar qc libworldbox_core.a CMakeFiles/worldbox_core.dir/world.cpp.o CMakeFiles/worldbox_core.dir/human_behavior.cpp.o CMakeFiles/worldbox_core.dir/civilian_behavior.cpp.o CMakeFiles/worldbox_core.dir/warrior_behavior.cpp.o CMakeFiles/worldbox_core.dir/bandit_behavior.cpp.o CMakeFiles/worldbox_core.dir/captain_behavior.cpp.o
+/usr/bin/ranlib libworldbox_core.a

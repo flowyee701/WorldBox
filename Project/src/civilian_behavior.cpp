@@ -2,10 +2,12 @@
 #include "environment/world.h"
 #include <cmath>
 
+// Returns the length of a 2D vector
 static float Length(Vector2 v) {
     return sqrtf(v.x*v.x + v.y*v.y);
 }
 
+// Picks a random tile center inside a settlement
 static Vector2 RandomPointInSettlement(const World& world, const Settlement& s) {
     if (s.tiles.empty()) {
         return {
@@ -28,17 +30,16 @@ static Vector2 RandomPointInSettlement(const World& world, const Settlement& s) 
     };
 }
 
+// Updates civilian wandering behavior
 void CivilianBehavior::Update(World& world, NPC& npc, float dt)
 {
     if (dt <= 0.0f) return;
 
     const float MAX_SPEED = npc.speed * 1.4f;
-    const float SLOW_RADIUS = 25.0f;     // радиус торможения
-    const float STOP_RADIUS = 6.0f;      // считаем, что дошёл
+    const float SLOW_RADIUS = 25.0f;
+    const float STOP_RADIUS = 6.0f;
 
-    // =============================
-    // 1. Проверка привязки
-    // =============================
+    // Refresh settlement ownership if needed
     if (npc.settlementId >= 0) {
         if (npc.settlementId >= (int)world.settlements.size() ||
             !world.settlements[npc.settlementId].alive)
@@ -59,9 +60,7 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
         }
     }
 
-    // =============================
-    // 2. Короткий отдых
-    // =============================
+    // Stay idle briefly after reaching a target
     if (npc.restTimer > 0.0f) {
         npc.restTimer -= dt;
         npc.vel.x *= 0.85f;
@@ -69,9 +68,7 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
         return;
     }
 
-    // =============================
-    // 3. Выбор новой цели
-    // =============================
+    // Pick a new roam target when needed
     if (!npc.hasRoamTarget) {
         if (npc.settlementId == -1) {
             npc.roamTarget = {
@@ -87,9 +84,7 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
         npc.hasRoamTarget = true;
     }
 
-    // =============================
-    // 4. Движение к цели
-    // =============================
+    // Move toward the current roam target
     Vector2 toTarget = {
             npc.roamTarget.x - npc.pos.x,
             npc.roamTarget.y - npc.pos.y
@@ -97,7 +92,6 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
 
     float dist = Length(toTarget);
 
-    // если дошёл
     if (dist < STOP_RADIUS) {
         npc.hasRoamTarget = false;
         npc.restTimer = RandomFloat(0.2f, 0.6f);
@@ -106,7 +100,6 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
 
     Vector2 dir = SafeNormalize(toTarget);
 
-    // плавное торможение при приближении
     float desiredSpeed = MAX_SPEED;
 
     if (dist < SLOW_RADIUS) {
@@ -118,16 +111,13 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
             dir.y * desiredSpeed
     };
 
-    // сглаживание скорости
     npc.vel.x = npc.vel.x * 0.6f + desiredVel.x * 0.4f;
     npc.vel.y = npc.vel.y * 0.6f + desiredVel.y * 0.4f;
 
     npc.pos.x += npc.vel.x * dt;
     npc.pos.y += npc.vel.y * dt;
 
-    // =============================
-    // 5. Ограничение по миру
-    // =============================
+    // Keep civilians inside the world bounds
     npc.pos.x = Clamp(npc.pos.x, 0.0f, (float)world.worldW);
     npc.pos.y = Clamp(npc.pos.y, 0.0f, (float)world.worldH);
 }
