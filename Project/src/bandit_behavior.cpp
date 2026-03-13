@@ -14,23 +14,6 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
     const Settlement* targetSettlement = nullptr;
     NPC* victim = nullptr;
     float bestDist2 = 1e9f;
-
-    if (targetSettlement) {
-        for (auto& other : world.npcs) {
-            if (!other.alive) continue;
-            if (other.humanRole == NPC::HumanRole::BANDIT) continue;
-            if (other.settlementId != npc.settlementId) continue;
-
-            float dx = other.pos.x - npc.pos.x;
-            float dy = other.pos.y - npc.pos.y;
-            float d2 = dx*dx + dy*dy;
-
-            if (d2 < bestDist2) {
-                bestDist2 = d2;
-                victim = &other;
-            }
-        }
-    }
     for (const auto& s : world.settlements) {
         if (PointInSettlementPx(s, npc.pos)) {
             targetSettlement = &s;
@@ -66,18 +49,6 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
     }
 
     if (targetSettlement) {
-        Vector2 toCenter = {
-                targetSettlement->centerPx.x - npc.pos.x,
-                targetSettlement->centerPx.y - npc.pos.y
-        };
-        if (victim) {
-            Vector2 toVictim = {
-                    victim->pos.x - npc.pos.x,
-                    victim->pos.y - npc.pos.y
-            };
-            desiredDir = SafeNormalize(toVictim);
-        }
-        else if (targetSettlement) {
             Vector2 noise = {
                     RandomFloat(-1.0f, 1.0f),
                     RandomFloat(-1.0f, 1.0f)
@@ -89,10 +60,6 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
             npc.banditGroupDir = SafeNormalize(npc.banditGroupDir);
 
             desiredDir = npc.banditGroupDir;
-        }
-        else {
-            desiredDir = npc.banditGroupDir;
-        }
         baseSpeed *= 0.5f;
     } else {
         if (targetWarrior) {

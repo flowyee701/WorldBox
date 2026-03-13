@@ -10,6 +10,7 @@ enum class AppState
     PAUSED
 };
 
+
 enum class SpawnMode { CIVILIAN, WARRIOR, BUILD_BARRACKS };
 enum class WarriorRank { WARRIOR, CAPTAIN };
 enum class ToolMode { NONE, KILL, WAR, METEOR };
@@ -411,7 +412,7 @@ int main() {
                     }
                 }
 
-                world.Update(dt);
+                world.Update(dt, &world.terrain);
             }
             else if (appState == AppState::PAUSED) {
                 if (IsKeyPressed(KEY_ESCAPE)) {
