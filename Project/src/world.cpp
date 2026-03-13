@@ -928,6 +928,7 @@ static Vector2 RandomEdgeSpawn(int w, int h) {
 }
 
 void World::SpawnCivilian(Vector2 pos) {
+    if (!terrain.canBuild(pos.x, pos.y)) return;
 
     NPC npc;
     npc.id = nextNpcId++;
@@ -1014,6 +1015,8 @@ void World::SpawnCivilian(Vector2 pos) {
 }
 
 void World::SpawnWarrior(Vector2 pos) {
+    if (!terrain.canBuild(pos.x, pos.y)) return;
+
     NPC npc;
     npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
@@ -1038,6 +1041,8 @@ void World::SpawnWarrior(Vector2 pos) {
     npcs.push_back(npc);
 }
 void World::SpawnCaptain(Vector2 pos) {
+    if (!terrain.canBuild(pos.x, pos.y)) return;
+
     NPC npc;
     npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
@@ -1089,6 +1094,8 @@ const NPC* World::FindNpcById(uint32_t id) const {
 
 bool World::TryBuildBarracksAt(Vector2 worldPos)
 {
+    if (!terrain.canBuild(worldPos.x, worldPos.y)) return false;
+
     for (auto& s : settlements) {
         if (!s.alive) continue;
         if (!PointInSettlementPx(s, worldPos)) continue;
@@ -1725,6 +1732,9 @@ void World::Init()
     cols = worldW / CELL_SIZE;
     rows = worldH / CELL_SIZE;
 
+    terrain = Terrain(cols, rows, worldSeed);
+    terrain.generate();
+
     settlements.clear();
     npcs.clear();
 
@@ -1894,7 +1904,7 @@ void World::Update(float dt) {
         plant.Update(dt);
     }
     for (auto& animal : animals) {
-        animal->Update(dt);
+        animal->Update(dt, &terrain);
     }
 
     MergeSettlementsIfNeeded();
@@ -1907,20 +1917,31 @@ void World::SpawnAnimal(Vector2 pos) {
     animals.push_back(std::make_unique<Animal>(pos));
 }
 
-void World::SpawnPlant(Vector2 pos) {
-    plants.push_back(Plant(pos));
+void World::SpawnPlant(Vector2 pos, float treeChance) {
+    plants.push_back(Plant(pos, treeChance));
 }
 
 void World::GenerateNature(int plantCount, int animalCount) {
-    // Раскидываем растения по карте
+    const auto& biomes = terrain.getBiomes();
+    
     for (int i = 0; i < plantCount; i++) {
         Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
-        SpawnPlant(pos);
+        
+        const Biome* biome = terrain.getBiomeAt(pos.x, pos.y);
+        if (biome && biome->props.canBuild) {
+            if (biome->props.hasVegetation || biome->props.treeChance > 0.0f) {
+                SpawnPlant(pos, biome->props.treeChance);
+            }
+        }
     }
-    // Раскидываем животных по карте
+    
     for (int i = 0; i < animalCount; i++) {
         Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
-        SpawnAnimal(pos);
+        
+        const Biome* biome = terrain.getBiomeAt(pos.x, pos.y);
+        if (biome && !biome->props.isWater && biome->props.canWalk) {
+            SpawnAnimal(pos);
+        }
     }
 }
 
@@ -1976,15 +1997,7 @@ static void DrawDiamondOutline(Vector2 center, int r, Color col)
 
 void World::Draw() const {
 
-    // grass
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x < cols; x++) {
-            Color base = ((x + y) % 2 == 0)
-                         ? Color{60, 120, 60, 255}
-                         : Color{55, 110, 55, 255};
-            DrawRectangle(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE, base);
-        }
-    }
+    terrain.draw();
     for (const auto& plant : plants) {
         plant.Draw();
     }

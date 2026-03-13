@@ -1,5 +1,6 @@
 // src/Animal.cpp
 #include "npc/Animal.h"
+#include "terrain/terrain.h"
 #include <cmath>
 #include "raymath.h"
 
@@ -7,8 +8,8 @@ Animal::Animal(Vector2 pos) : position(pos), speed(DEFAULT_SPEED), hunger(100.0f
     velocity = { (float)GetRandomValue(-10, 10) / 10.0f, (float)GetRandomValue(-10, 10) / 10.0f };
 }
 
-void Animal::Wander(float deltaTime) {
-    // ... без изменений (используйте speed)
+void Animal::Wander(float deltaTime, const Terrain* terrain) {
+    Vector2 newPos = position;
     if (GetRandomValue(0, 100) < 2) {
         velocity.x += (float)GetRandomValue(-5, 5) / 10.0f;
         velocity.y += (float)GetRandomValue(-5, 5) / 10.0f;
@@ -18,8 +19,23 @@ void Animal::Wander(float deltaTime) {
         }
     }
 
-    position.x += velocity.x * speed * deltaTime;
-    position.y += velocity.y * speed * deltaTime;
+    // 2. Рассчитываем новую позицию
+    newPos.x += velocity.x * speed * deltaTime;
+    newPos.y += velocity.y * speed * deltaTime;
+
+    // Проверяем, можно ли ходить по новой позиции (не вода)
+    bool canWalk = true;
+    if (terrain) {
+        canWalk = terrain->canWalk(newPos.x, newPos.y);
+    }
+
+    // Если место непроходимое (вода), отражаем скорость и не двигаемся
+    if (!canWalk) {
+        velocity.x *= -1;
+        velocity.y *= -1;
+    } else {
+        position = newPos;
+    }
 
     // Проверка границ
     if (position.x < 0) { position.x = 0; velocity.x *= -1; }
@@ -28,9 +44,9 @@ void Animal::Wander(float deltaTime) {
     else if (position.y > 900) { position.y = 900; velocity.y *= -1; }
 }
 
-void Animal::Update(float deltaTime) {
-    Wander(deltaTime);
-    hunger -= HUNGER_DECAY_RATE * deltaTime;   // <-- используем константу
+void Animal::Update(float deltaTime, const Terrain* terrain) {
+    Wander(deltaTime, terrain);
+    hunger -= HUNGER_DECAY_RATE * deltaTime;
 }
 
 void Animal::Draw() const {

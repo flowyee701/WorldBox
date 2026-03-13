@@ -24,9 +24,9 @@ public:
     static Texture2D texTree;
     static bool texturesLoaded;
 
-    Plant(Vector2 pos);
-    void Update(float deltaTime) override;   // <-- override
-    void Draw() const override;              // <-- override
+    Plant(Vector2 pos, float treeChance = 0.5f);
+    void Update(float deltaTime) override;
+    void Draw() const override; 
 };
 
 #endif

@@ -1,197 +1,251 @@
 #include "terrain/terrain.h"
-
-#include <algorithm>
-#include <cstdlib>
 #include <cmath>
-
-namespace {
-    float smoothstep(float edge0, float edge1, float x) {
-        float t = (x - edge0) / (edge1 - edge0);
-        if (t < 0.0f) t = 0.0f;
-        if (t > 1.0f) t = 1.0f;
-        return t * t * (3.0f - 2.0f * t);
-    }
-
-    float clamp(float x, float minVal, float maxVal) {
-        if (x < minVal) return minVal;
-        if (x > maxVal) return maxVal;
-        return x;
-    }
-
-    float distToLineSegment(float px, float py, float x1, float y1, float x2, float y2) {
-        float dx = x2 - x1;
-        float dy = y2 - y1;
-        float len2 = dx * dx + dy * dy;
-        if (len2 < 0.0001f) return sqrtf((px - x1) * (px - x1) + (py - y1) * (py - y1));
-        float t = ((px - x1) * dx + (py - y1) * dy) / len2;
-        t = clamp(t, 0.0f, 1.0f);
-        float nearX = x1 + t * dx;
-        float nearY = y1 + t * dy;
-        return sqrtf((px - nearX) * (px - nearX) + (py - nearY) * (py - nearY));
-    }
-}
+#include <algorithm>
 
 Terrain::Terrain(int width, int height, unsigned int seed)
-    : width(width), height(height), seed(seed), tiles(width * height) {
+    : width(width), height(height), seed(seed),
+      tiles(width * height) {
 
-    TileProperties deepOceanProps{0.0f, false, true, false, true, false, {0, 40, 100, 255}, 0.0f, 0.0f, VegetationType::None, OreType::None, TerrainFeature::None, {0,0,0,0}, 100.0f};
-    TileProperties oceanProps{0.0f, false, true, false, true, false, {0, 80, 180, 255}, 0.0f, 0.0f, VegetationType::None, OreType::None, TerrainFeature::None, {0,0,0,0}, 100.0f};
-    TileProperties beachProps{0.8f, true, false, true, false, false, {238, 200, 160, 255}, 0.0f, 0.0f, VegetationType::None, OreType::None, TerrainFeature::Beach, {200, 180, 140, 255}, 0.0f};
-    TileProperties desertProps{0.9f, true, false, true, false, false, {237, 201, 175, 255}, 0.02f, 0.0f, VegetationType::Cactus, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties savannaProps{0.85f, true, false, true, false, true, {160, 140, 70, 255}, 0.05f, 0.0f, VegetationType::PalmTree, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties grasslandProps{1.0f, true, false, true, false, true, {70, 140, 70, 255}, 0.08f, 0.0f, VegetationType::OakTree, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties forestProps{0.7f, true, false, true, false, true, {30, 100, 30, 255}, 0.5f, 0.0f, VegetationType::OakTree, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties taigaProps{0.6f, true, false, true, false, true, {35, 70, 50, 255}, 0.4f, 0.0f, VegetationType::PineTree, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties jungleProps{0.5f, true, false, true, false, true, {20, 80, 20, 255}, 0.6f, 0.0f, VegetationType::Bush, OreType::None, TerrainFeature::Swamp, {60, 100, 60, 255}, 0.0f};
-    TileProperties swampProps{0.4f, true, false, true, false, false, {60, 80, 50, 255}, 0.15f, 0.0f, VegetationType::Bush, OreType::None, TerrainFeature::Swamp, {50, 70, 40, 255}, 0.0f};
-    TileProperties tundraProps{0.5f, true, false, true, false, true, {180, 170, 160, 255}, 0.05f, 0.0f, VegetationType::Bush, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties mountainProps{0.3f, true, false, true, false, false, {100, 100, 110, 255}, 0.0f, 0.12f, VegetationType::None, OreType::Coal, TerrainFeature::Cliff, {80, 80, 90, 255}, 0.0f};
-    TileProperties highMountainProps{0.5f, true, false, true, false, false, {130, 130, 140, 255}, 0.0f, 0.08f, VegetationType::None, OreType::Iron, TerrainFeature::Cliff, {110, 110, 120, 255}, 0.0f};
-    TileProperties snowProps{0.5f, true, false, true, false, false, {220, 230, 240, 255}, 0.0f, 0.02f, VegetationType::None, OreType::None, TerrainFeature::None, {0,0,0,0}, 0.0f};
-    TileProperties volcanicProps{0.5f, true, false, true, false, false, {80, 30, 30, 255}, 0.0f, 0.05f, VegetationType::None, OreType::Gold, TerrainFeature::Volcano, {200, 50, 20, 255}, 50.0f};
-    TileProperties canyonProps{0.4f, true, false, true, false, false, {160, 100, 60, 255}, 0.0f, 0.0f, VegetationType::None, OreType::Copper, TerrainFeature::Canyon, {140, 80, 50, 255}, 0.0f};
-    TileProperties oasisProps{1.0f, true, false, true, false, false, {100, 180, 150, 255}, 0.3f, 0.0f, VegetationType::PalmTree, OreType::None, TerrainFeature::Oasis, {80, 160, 120, 255}, 0.0f};
+    // ── Deep Water ──
+    TileProperties deepWaterProps;
+    deepWaterProps.moveSpeed = 0.0f;
+    deepWaterProps.canWalk  = false;
+    deepWaterProps.canSwim  = true;
+    deepWaterProps.canBuild = false;
+    deepWaterProps.isWater  = true;
+    deepWaterProps.tint     = {5, 20, 80, 255};
 
-    biomes = {
-        {"DeepOcean", {0, 80, 160, 255},   0.0f, 0.25f, 0.0f, 1.0f, 0.0f, 1.0f, TileType::Water, deepOceanProps},
-        {"Ocean",     {0, 110, 190, 255},  0.25f, 0.36f, 0.0f, 1.0f, 0.0f, 1.0f, TileType::Water, oceanProps},
-        {"Beach",     {238, 232, 170, 255},0.36f, 0.42f, 0.0f, 1.0f, 0.0f, 1.0f, TileType::Sand,  beachProps},
+    // ── Shallow Water ──
+    TileProperties shallowWaterProps;
+    shallowWaterProps.moveSpeed = 0.0f;
+    shallowWaterProps.canWalk  = false;
+    shallowWaterProps.canSwim  = true;
+    shallowWaterProps.canBuild = false;
+    shallowWaterProps.isWater  = true;
+    shallowWaterProps.tint     = {25, 75, 155, 255};
 
-        {"Desert",    {212, 160, 23, 255}, 0.42f, 0.58f, 0.0f, 0.25f, 0.5f, 1.0f, TileType::Sand,  desertProps},
-        {"Savanna",   {180, 140, 40, 255}, 0.42f, 0.58f, 0.25f, 0.45f, 0.5f, 1.0f, TileType::Grass, savannaProps},
+    // ── Beach ──
+    TileProperties beachProps;
+    beachProps.moveSpeed = 0.9f;
+    beachProps.canWalk  = true;
+    beachProps.canSwim  = false;
+    beachProps.canBuild = true;
+    beachProps.isWater  = false;
+    beachProps.tint     = {220, 205, 145, 255};
+    beachProps.hasVegetation = false;
+    beachProps.treeChance = 0.0f;
 
-        {"Grassland", {64, 128, 64, 255},  0.42f, 0.58f, 0.4f, 0.65f, 0.3f, 0.8f, TileType::Grass, grasslandProps},
-        {"Forest",    {32, 96, 32, 255},   0.42f, 0.58f, 0.55f, 0.85f, 0.3f, 0.7f, TileType::Grass, forestProps},
-        {"Jungle",    {20, 80, 20, 255},   0.42f, 0.58f, 0.75f, 1.0f, 0.6f, 1.0f, TileType::Grass, jungleProps},
+    // ── Plains ──
+    TileProperties plainsProps;
+    plainsProps.moveSpeed = 1.0f;
+    plainsProps.canWalk  = true;
+    plainsProps.canSwim  = false;
+    plainsProps.canBuild = true;
+    plainsProps.isWater  = false;
+    plainsProps.tint     = {90, 170, 65, 255};
+    plainsProps.hasVegetation = true;
+    plainsProps.treeChance = 0.05f;
 
-        {"Swamp",     {60, 80, 50, 255},   0.35f, 0.50f, 0.85f, 1.0f, 0.4f, 1.0f, TileType::Dirt, swampProps},
+    // ── Forest ──
+    TileProperties forestProps;
+    forestProps.moveSpeed = 0.7f;
+    forestProps.canWalk  = true;
+    forestProps.canSwim  = false;
+    forestProps.canBuild = true;
+    forestProps.isWater  = false;
+    forestProps.tint     = {35, 110, 30, 255};
+    forestProps.hasVegetation = true;
+    forestProps.treeChance = 0.8f;
 
-        {"Taiga",     {40, 80, 60, 255},   0.50f, 0.62f, 0.5f, 1.0f, 0.0f, 0.4f, TileType::Dirt,  taigaProps},
-        {"Tundra",    {180, 170, 160, 255},0.50f, 0.62f, 0.4f, 0.8f, 0.0f, 0.35f, TileType::Dirt, tundraProps},
+    // ── Hills ──
+    TileProperties hillsProps;
+    hillsProps.moveSpeed = 0.6f;
+    hillsProps.canWalk  = true;
+    hillsProps.canSwim  = false;
+    hillsProps.canBuild = true;
+    hillsProps.isWater  = false;
+    hillsProps.tint     = {135, 128, 88, 255};
+    hillsProps.hasVegetation = true;
+    hillsProps.treeChance = 0.3f;
 
-        {"Mountain",  {48, 48, 48, 255},   0.62f, 0.80f, 0.0f, 1.0f, 0.0f, 0.9f, TileType::Stone, mountainProps},
-        {"HighMountain",{40, 40, 45, 255},0.80f, 0.92f, 0.0f, 1.0f, 0.0f, 0.6f, TileType::Stone, highMountainProps},
+    // ── Mountain ──
+    TileProperties mountainProps;
+    mountainProps.moveSpeed = 0.3f;
+    mountainProps.canWalk  = true;
+    mountainProps.canSwim  = false;
+    mountainProps.canBuild = false;
+    mountainProps.isWater  = false;
+    mountainProps.tint     = {100, 92, 82, 255};
+    mountainProps.hasVegetation = true;
+    mountainProps.treeChance = 0.1f;
 
-        {"Volcanic",  {80, 30, 30, 255},   0.65f, 0.80f, 0.0f, 0.4f, 0.7f, 1.0f, TileType::Lava, volcanicProps},
+    // ── Snow Peak ──
+    TileProperties snowProps;
+    snowProps.moveSpeed = 0.2f;
+    snowProps.canWalk  = true;
+    snowProps.canSwim  = false;
+    snowProps.canBuild = false;
+    snowProps.isWater  = false;
+    snowProps.tint     = {230, 236, 248, 255};
+    snowProps.hasVegetation = false;
+    snowProps.treeChance = 0.0f;
 
-        {"Snow",      {224, 224, 224, 255},0.85f, 1.0f,  0.0f, 1.0f, 0.0f, 0.35f, TileType::Snow,  snowProps},
-
-        {"Canyon",    {160, 100, 60, 255},  0.50f, 0.70f, 0.0f, 0.3f, 0.6f, 1.0f, TileType::Stone, canyonProps},
-        {"Oasis",     {100, 180, 150, 255}, 0.42f, 0.50f, 0.0f, 0.2f, 0.7f, 1.0f, TileType::Sand, oasisProps},
-    };
+    biomes.clear();
+    biomes.push_back({"Deep Water",    {12, 35, 100, 255},    0.0f,  0.22f, 0.0f, 1.0f, TileType::Water, deepWaterProps});
+    biomes.push_back({"Shallow Water", {40, 95, 175, 255},    0.22f, 0.37f, 0.0f, 1.0f, TileType::Water, shallowWaterProps});
+    biomes.push_back({"Beach",         {218, 204, 142, 255},  0.37f, 0.39f, 0.0f, 1.0f, TileType::Grass, beachProps});
+    biomes.push_back({"Plains",        {95, 175, 68, 255},    0.39f, 0.45f, 0.0f, 1.0f, TileType::Grass, plainsProps});
+    biomes.push_back({"Forest",        {38, 115, 32, 255},    0.45f, 0.67f, 0.0f, 1.0f, TileType::Grass, forestProps});
+    biomes.push_back({"Hills",         {138, 132, 92, 255},   0.67f, 0.80f, 0.0f, 1.0f, TileType::Stone, hillsProps});
+    biomes.push_back({"Mountain",      {108, 98, 88, 255},    0.80f, 0.92f, 0.0f, 1.0f, TileType::Stone, mountainProps});
+    biomes.push_back({"Snow Peak",     {232, 238, 250, 255},  0.92f, 1.0f,  0.0f, 1.0f, TileType::Stone, snowProps});
 }
 
-int Terrain::getBiomeIndex(float elevation, float moisture, float temp) const {
+// ─────────────────────── noise helpers ───────────────────────
+
+float Terrain::fade(float t) const {
+    return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+}
+
+float Terrain::lerp(float a, float b, float t) const {
+    return a + t * (b - a);
+}
+
+float Terrain::grad(int hash, float x, float y) const {
+    int h = hash & 15;
+    float u = h < 8 ? x : y;
+    float v = h < 4 ? y : (h == 12 || h == 14 ? x : 0.0f);
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+float Terrain::perlinNoise(float x, float y) const {
+    static int permutation[512] = {
+        151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,
+        8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,
+        35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,
+        134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,
+        55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,
+        18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,
+        250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,
+        189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,
+        172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,
+        228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,
+        107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
+        138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180,
+
+        151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,
+        8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,
+        35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,
+        134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,
+        55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,
+        18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,
+        250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,
+        189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,
+        172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,
+        228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,
+        107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
+        138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
+    };
+
+    int shift = seed % 256;
+    int perm[512];
+    for (int i = 0; i < 512; i++) {
+        perm[i] = permutation[(i + shift) % 256];
+    }
+
+    int xi = (int)std::floor(x) & 255;
+    int yi = (int)std::floor(y) & 255;
+
+    float xf = x - std::floor(x);
+    float yf = y - std::floor(y);
+
+    float u = fade(xf);
+    float v = fade(yf);
+
+    int aa = perm[perm[xi]     + yi];
+    int ab = perm[perm[xi]     + yi + 1];
+    int ba = perm[perm[xi + 1] + yi];
+    int bb = perm[perm[xi + 1] + yi + 1];
+
+    float x1 = lerp(grad(aa, xf, yf),        grad(ba, xf - 1.0f, yf), u);
+    float x2 = lerp(grad(ab, xf, yf - 1.0f), grad(bb, xf - 1.0f, yf - 1.0f), u);
+
+    return lerp(x1, x2, v);
+}
+
+float Terrain::fbm(float x, float y, int octaves) const {
+    float value     = 0.0f;
+    float amplitude = 0.5f;
+    float frequency = 1.0f;
+    float maxValue  = 0.0f;
+
+    for (int i = 0; i < octaves; i++) {
+        value    += amplitude * perlinNoise(x * frequency, y * frequency);
+        maxValue += amplitude;
+        amplitude *= 0.5f;
+        frequency *= 2.0f;
+    }
+
+    return value / maxValue;
+}
+
+// ─────────────────────── generation ───────────────────────
+
+void Terrain::generate() {
+    float seedX = (float)((seed * 16807u) % 10000u);
+    float seedY = (float)((seed * 48271u) % 10000u);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            float nx = (float)x + seedX;
+            float ny = (float)y + seedY;
+
+            // --- Крупные формы (континенты) ---
+            float continent_low  = fbm(nx * 0.0015f, ny * 0.0015f, 2);
+            float continent_mid  = fbm(nx * 0.005f,  ny * 0.005f,  3);
+            float continent_base = continent_low * 0.6f + continent_mid * 0.4f;
+            continent_base = (continent_base + 1.0f) * 0.5f; // [0,1]
+            continent_base = std::pow(continent_base, 1.2f); // контраст
+
+            // --- Детали рельефа с warp ---
+            float warpX = fbm(nx * 0.02f + 300.0f, ny * 0.02f + 300.0f, 2) * 25.0f;
+            float warpY = fbm(nx * 0.02f + 700.0f, ny * 0.02f + 700.0f, 2) * 25.0f;
+            float terrain_detail = fbm((nx + warpX) * 0.03f + 500.0f,
+                                       (ny + warpY) * 0.03f + 500.0f, 5);
+
+            // --- Горы (ridge) ---
+            float ridge = fbm(nx * 0.012f + 1000.0f, ny * 0.012f + 1000.0f, 4);
+            ridge = 1.0f - std::abs(ridge);
+            ridge = std::pow(ridge, 2.5f);
+
+            // --- Коэффициент суши (чтобы детали не создавали острова в воде) ---
+            float land_factor = std::clamp((continent_base - 0.3f) / 0.7f, 0.0f, 1.0f);
+
+            // --- Финальная высота ---
+            float elevation = continent_base;
+            elevation += (terrain_detail * 0.25f + ridge * 0.30f) * land_factor;
+            elevation = std::clamp(elevation, 0.0f, 1.0f);
+            elevation = std::pow(elevation, 1.3f); // дополнительный контраст
+
+            Tile tile;
+            tile.elevation  = elevation;
+            tile.biomeIndex = getBiomeIndex(elevation, 0.0f, 0.5f);
+            tile.type       = biomes[tile.biomeIndex].groundType;
+            setTile(x, y, tile);
+        }
+    }
+}
+
+// ─────────────────────── biome / tile queries ───────────────────────
+
+int Terrain::getBiomeIndex(float elevation, float moisture, float temperature) const {
     for (size_t i = 0; i < biomes.size(); ++i) {
         const Biome& b = biomes[i];
-        if (elevation >= b.minElevation && elevation <= b.maxElevation &&
-            moisture >= b.minMoisture && moisture <= b.maxMoisture &&
-            temp >= b.minTemp && temp <= b.maxTemp) {
+        if (elevation >= b.minElevation && elevation <= b.maxElevation) {
             return static_cast<int>(i);
         }
     }
     return 0;
-}
-
-void Terrain::generate() {
-    const int regionsX = 6;
-    const int regionsY = 5;
-    int regionWidth = width / regionsX;
-    int regionHeight = height / regionsY;
-
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            Tile& tile = getTile(x, y);
-
-            int regionX = x / regionWidth;
-            int regionY = y / regionHeight;
-            if (regionX >= regionsX) regionX = regionsX - 1;
-            if (regionY >= regionsY) regionY = regionsY - 1;
-
-            tile.elevation = 0.5f;
-            tile.moisture = 0.5f;
-            tile.temperature = 0.5f;
-            tile.feature = TerrainFeature::None;
-            tile.vegetation = {};
-            tile.ore = {};
-
-            if (regionY == 0) {
-                if (regionX == 0) tile.biomeIndex = 0;
-                else if (regionX == 1) tile.biomeIndex = 1;
-                else tile.biomeIndex = 2;
-            } else if (regionY == 1) {
-                if (regionX == 0) tile.biomeIndex = 3;
-                else if (regionX == 1) tile.biomeIndex = 4;
-                else if (regionX == 2) tile.biomeIndex = 16;
-                else tile.biomeIndex = 17;
-            } else if (regionY == 2) {
-                if (regionX == 0) tile.biomeIndex = 5;
-                else if (regionX == 1) tile.biomeIndex = 6;
-                else if (regionX == 2) tile.biomeIndex = 7;
-                else if (regionX == 3) tile.biomeIndex = 8;
-                else tile.biomeIndex = 16;
-            } else if (regionY == 3) {
-                if (regionX == 0) tile.biomeIndex = 9;
-                else if (regionX == 1) tile.biomeIndex = 10;
-                else if (regionX == 2) tile.biomeIndex = 11;
-                else if (regionX == 3) tile.biomeIndex = 12;
-                else tile.biomeIndex = 13;
-            } else {
-                if (regionX == 0) tile.biomeIndex = 14;
-                else if (regionX == 1) tile.biomeIndex = 15;
-                else tile.biomeIndex = 14;
-            }
-
-            const Biome& biome = biomes[tile.biomeIndex];
-            tile.type = biome.groundType;
-
-            if (biome.props.preferredTree != VegetationType::None) {
-                if ((x + y) % 7 == 0) {
-                    tile.vegetation.type = biome.props.preferredTree;
-                    tile.vegetation.yieldAmount = 3;
-                    tile.vegetation.yieldName = "wood";
-                    tile.vegetation.isHarvestable = true;
-                }
-            }
-
-            if (biome.props.oreType != OreType::None) {
-                if ((x * 3 + y * 7) % 11 == 0) {
-                    tile.ore.type = biome.props.oreType;
-                    tile.ore.amount = 3;
-                    tile.ore.yieldName = "ore";
-                    tile.ore.isHarvestable = true;
-                }
-            }
-
-            if (biome.props.feature != TerrainFeature::None) {
-                if ((x + y * 2) % 13 == 0) {
-                    tile.feature = biome.props.feature;
-                }
-            }
-
-            if (biome.props.feature == TerrainFeature::None && biome.groundType == TileType::Stone) {
-                if ((x * 5 + y) % 17 == 0) {
-                    tile.feature = TerrainFeature::Rock;
-                }
-            }
-        }
-    }
-}
-
-void Terrain::generateActualPlayMap() {
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            Tile& tile = getTile(x, y);
-            tile.biomeIndex = 0;
-            tile.elevation = 0.0f;
-            tile.moisture = 0.0f;
-            tile.temperature = 0.0f;
-            tile.feature = TerrainFeature::None;
-            tile.vegetation = {};
-            tile.ore = {};
-            tile.type = TileType::Water;
-        }
-    }
 }
 
 void Terrain::setTile(int x, int y, const Tile& tile) {
@@ -209,19 +263,17 @@ const Tile& Terrain::getTile(int x, int y) const {
 }
 
 const Tile* Terrain::getTileAt(float worldX, float worldY) const {
-    int tileSize = 20;
+    int tileSize = 8;
     int tx = (int)(worldX / tileSize);
     int ty = (int)(worldY / tileSize);
-    if (tx < 0 || tx >= width || ty < 0 || ty >= height) {
-        return nullptr;
-    }
+    if (tx < 0 || tx >= width || ty < 0 || ty >= height) return nullptr;
     return &getTile(tx, ty);
 }
 
 const TileProperties* Terrain::getTilePropertiesAt(float worldX, float worldY) const {
-    const Biome* biome = getBiomeAt(worldX, worldY);
-    if (!biome) return nullptr;
-    return &biome->props;
+    const Tile* tile = getTileAt(worldX, worldY);
+    if (!tile || tile->biomeIndex < 0) return nullptr;
+    return &biomes[tile->biomeIndex].props;
 }
 
 const TileProperties& Terrain::getTileProperties(int x, int y) const {
@@ -229,60 +281,37 @@ const TileProperties& Terrain::getTileProperties(int x, int y) const {
         static TileProperties empty;
         return empty;
     }
-    const Biome& biome = biomes[getTile(x, y).biomeIndex];
-    return biome.props;
-}
-
-const VegetationData* Terrain::getVegetationAt(float worldX, float worldY) const {
-    const Tile* tile = getTileAt(worldX, worldY);
-    if (!tile || tile->vegetation.type == VegetationType::None) {
-        return nullptr;
-    }
-    return &tile->vegetation;
-}
-
-const OreData* Terrain::getOreAt(float worldX, float worldY) const {
-    const Tile* tile = getTileAt(worldX, worldY);
-    if (!tile || tile->ore.type == OreType::None) {
-        return nullptr;
-    }
-    return &tile->ore;
+    return biomes[getTile(x, y).biomeIndex].props;
 }
 
 const Biome* Terrain::getBiomeAt(float worldX, float worldY) const {
     const Tile* tile = getTileAt(worldX, worldY);
-    if (!tile || tile->biomeIndex < 0) {
-        return nullptr;
-    }
+    if (!tile || tile->biomeIndex < 0) return nullptr;
     return &biomes[tile->biomeIndex];
 }
 
 bool Terrain::canWalk(float worldX, float worldY) const {
-    const TileProperties* props = getTilePropertiesAt(worldX, worldY);
-    if (!props) return false;
-    return props->canWalk;
+    const TileProperties* p = getTilePropertiesAt(worldX, worldY);
+    return p ? p->canWalk : false;
 }
 
 bool Terrain::canBuild(float worldX, float worldY) const {
-    const TileProperties* props = getTilePropertiesAt(worldX, worldY);
-    if (!props) return false;
-    return props->canBuild;
+    const TileProperties* p = getTilePropertiesAt(worldX, worldY);
+    return p ? p->canBuild : false;
 }
 
-float Terrain::getDamageAt(float worldX, float worldY) const {
-    const TileProperties* props = getTilePropertiesAt(worldX, worldY);
-    if (!props) return 0.0f;
-    return props->damage;
+float Terrain::getMoveSpeedAt(float worldX, float worldY) const {
+    const TileProperties* p = getTilePropertiesAt(worldX, worldY);
+    return p ? p->moveSpeed : 1.0f;
 }
 
 bool Terrain::isPassable(int x, int y) const {
     if (x < 0 || x >= width || y < 0 || y >= height) return false;
-    const Tile& tile = getTile(x, y);
-    const TileProperties& props = getTileProperties(x, y);
-    return props.canWalk;
+    return getTileProperties(x, y).canWalk;
 }
 
-bool Terrain::findNearestPassable(int targetX, int targetY, int& outX, int& outY, int maxRadius) const {
+bool Terrain::findNearestPassable(int targetX, int targetY,
+                                   int& outX, int& outY, int maxRadius) const {
     for (int r = 1; r <= maxRadius; ++r) {
         for (int dy = -r; dy <= r; ++dy) {
             for (int dx = -r; dx <= r; ++dx) {
@@ -300,61 +329,119 @@ bool Terrain::findNearestPassable(int targetX, int targetY, int& outX, int& outY
     return false;
 }
 
-float Terrain::distToRegion(int px, int py, int rx1, int ry1, int rx2, int ry2) const {
-    return distToLineSegment(px, py, rx1, ry1, rx2, ry2);
-}
-
-void Terrain::carveRegion(int x1, int y1, int x2, int y2, float edgeFade, int biomeIdx) {
-    for (int y = y1; y < y2 && y < height; ++y) {
-        for (int x = x1; x < x2 && x < width; ++x) {
-            float edgeDist = distToRegion(x, y, x1, y1, x2, y2);
-            if (edgeDist < edgeFade * (x2 - x1)) {
-                getTile(x, y).biomeIndex = biomeIdx;
-            }
-        }
-    }
-}
+// ─────────────────────── rendering ───────────────────────
 
 void Terrain::draw() const {
-    const int tileSize = 20;
+    const int tileSize = 8;
+
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             const Tile& tile = getTile(x, y);
-            Color color = (tile.biomeIndex >= 0) ? biomes[tile.biomeIndex].color : MAGENTA;
-
-            DrawRectangle(x * tileSize, y * tileSize, tileSize, tileSize, color);
-
-            if (tile.feature == TerrainFeature::Cliff) {
-                DrawRectangle(x * tileSize + tileSize/2 - 1, y * tileSize, 2, tileSize, {30, 30, 35, 255});
-            } else if (tile.feature == TerrainFeature::Rock) {
-                DrawCircle(x * tileSize + tileSize/2, y * tileSize + tileSize/2, tileSize/3, {50, 50, 55, 255});
-            } else if (tile.feature == TerrainFeature::Beach) {
-                DrawRectangle(x * tileSize + tileSize/2 - 1, y * tileSize + tileSize/2 - 1, 2, 2, {200, 190, 150, 255});
-            } else if (tile.feature == TerrainFeature::Swamp) {
-                DrawCircle(x * tileSize + tileSize/2, y * tileSize + tileSize/2, tileSize/2, {45, 60, 40, 180});
-            } else if (tile.feature == TerrainFeature::Volcano) {
-                DrawCircle(x * tileSize + tileSize/2, y * tileSize + tileSize/2, tileSize/2, {255, 60, 10, 255});
-            } else if (tile.feature == TerrainFeature::Oasis) {
-                DrawCircle(x * tileSize + tileSize/2, y * tileSize + tileSize/2, tileSize/2, {50, 130, 100, 200});
+            if (tile.biomeIndex < 0) {
+                DrawRectangle(x * tileSize, y * tileSize, tileSize, tileSize, BLACK);
+                continue;
             }
 
-            if (tile.vegetation.type != VegetationType::None) {
-                Color vegColor = {20, 80, 20, 255};
-                if (tile.vegetation.type == VegetationType::PineTree) vegColor = {15, 50, 25, 255};
-                else if (tile.vegetation.type == VegetationType::PalmTree) vegColor = {80, 120, 40, 255};
-                else if (tile.vegetation.type == VegetationType::Cactus) vegColor = {50, 100, 50, 255};
-                else if (tile.vegetation.type == VegetationType::Bush) vegColor = {40, 80, 30, 255};
-                DrawCircle(x * tileSize + tileSize / 2, y * tileSize + tileSize / 2, tileSize / 2, vegColor);
+            const Biome& biome = biomes[tile.biomeIndex];
+            float r = (float)biome.color.r;
+            float g = (float)biome.color.g;
+            float b = (float)biome.color.b;
+
+            // Where this tile sits inside its own biome (0 = low edge, 1 = high)
+            float biomeSpan = biome.maxElevation - biome.minElevation;
+            float biomeT = (biomeSpan > 0.001f)
+                ? (tile.elevation - biome.minElevation) / biomeSpan
+                : 0.5f;
+
+            // ── Two cheap per-tile hashes for colour jitter ──
+            float h1 = std::sin((float)x * 12.9898f + (float)y * 78.233f)  * 43758.5453f;
+            h1 = h1 - std::floor(h1);                       // [0,1]
+            float h2 = std::sin((float)x * 63.726f  + (float)y * 10.873f)  * 28462.234f;
+            h2 = h2 - std::floor(h2);
+
+            float jitter = (h1 - 0.5f) * 2.0f;             // [-1,1]
+
+            if (biome.props.isWater) {
+                // ── Water: depth shading ──
+                // Deep = darker & more saturated; shallow = lighter & greener
+                float depth = 1.0f - biomeT;                // 1 = deepest
+                r = r * (0.55f + biomeT * 0.45f);
+                g = g * (0.60f + biomeT * 0.40f);
+                b = b * (0.70f + biomeT * 0.30f);
+
+                // Specular-ish sparkle on shallow water
+                if (biomeT > 0.6f) {
+                    float sparkle = h2 * (biomeT - 0.6f) * 40.0f;
+                    r += sparkle;
+                    g += sparkle;
+                    b += sparkle * 1.3f;
+                }
+
+                // Very subtle per-tile ripple
+                r += jitter * 6.0f;
+                g += jitter * 8.0f;
+                b += jitter * 10.0f;
+
+            } else {
+                // ── Land biomes ──
+
+                // Gentle brightness ramp across biome elevation band
+                float shade = 0.88f + biomeT * 0.12f;
+                r *= shade;
+                g *= shade;
+                b *= shade;
+
+                // Beach: warmer / cooler sand patches
+                if (tile.biomeIndex == 2) {                  // Beach
+                    float warmth = jitter * 14.0f;
+                    r += warmth;
+                    g += warmth * 0.7f;
+                    b -= std::abs(warmth) * 0.5f;
+                    // Wet sand near water edge
+                    if (biomeT < 0.3f) {
+                        float wet = (0.3f - biomeT) / 0.3f;
+                        r -= wet * 25.0f;
+                        g -= wet * 15.0f;
+                        b += wet * 10.0f;
+                    }
+                }
+                // Plains: yellow-green variation
+                else if (tile.biomeIndex == 3) {             // Plains
+                    r += jitter * 18.0f + h2 * 10.0f;
+                    g += jitter * 12.0f;
+                    b += jitter * 6.0f;
+                }
+                // Forest: dark / light canopy patches
+                else if (tile.biomeIndex == 4) {             // Forest
+                    float canopy = jitter * 16.0f;
+                    r += canopy * 0.4f;
+                    g += canopy;
+                    b += canopy * 0.3f;
+                }
+                // Hills+: general rocky jitter
+                else {
+                    r += jitter * 12.0f;
+                    g += jitter * 10.0f;
+                    b += jitter * 8.0f;
+                }
+
+                // ── Height-based whitening (snow/frost bleed) ──
+                if (tile.elevation > 0.68f) {
+                    float t = (tile.elevation - 0.68f) / 0.32f;  // 0→1
+                    float white = std::pow(t, 1.6f) * 0.55f;
+                    r = r + (255.0f - r) * white;
+                    g = g + (255.0f - g) * white;
+                    b = b + (255.0f - b) * white;
+                }
             }
 
-            if (tile.ore.type != OreType::None) {
-                Color oreColor = GRAY;
-                if (tile.ore.type == OreType::Coal) oreColor = {20, 20, 20, 255};
-                else if (tile.ore.type == OreType::Iron) oreColor = {120, 80, 60, 255};
-                else if (tile.ore.type == OreType::Gold) oreColor = {220, 180, 40, 255};
-                else if (tile.ore.type == OreType::Copper) oreColor = {150, 100, 60, 255};
-                DrawRectangle(x * tileSize + tileSize/4, y * tileSize + tileSize/4, tileSize/2, tileSize/2, oreColor);
-            }
+            // Clamp color components to valid range
+            r = std::clamp(r, 0.0f, 255.0f);
+            g = std::clamp(g, 0.0f, 255.0f);
+            b = std::clamp(b, 0.0f, 255.0f);
+
+            Color finalColor = { (unsigned char)r, (unsigned char)g, (unsigned char)b, 255 };
+            DrawRectangle(x * tileSize, y * tileSize, tileSize, tileSize, finalColor);
         }
     }
 }

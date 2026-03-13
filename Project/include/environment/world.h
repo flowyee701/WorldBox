@@ -6,6 +6,7 @@
 #include "raymath.h"
 #include "npc/npc.h"
 #include "settlement.h"
+#include "terrain/terrain.h"
 
 #include "npc/Animal.h"
 #include "environment/Plant.h"
@@ -18,6 +19,9 @@ public:
     int worldH = 0;
     int cols = 0;
     int rows = 0;
+
+    Terrain terrain;
+    unsigned int worldSeed = 0;
 
     std::vector<Settlement> settlements;
     std::vector<NPC> npcs;
@@ -113,7 +117,7 @@ public:
 
     // --- ДОБАВЛЕНО: Методы для спавна природы ---
     void SpawnAnimal(Vector2 pos);
-    void SpawnPlant(Vector2 pos);
+    void SpawnPlant(Vector2 pos, float treeChance = 0.5f);
     void GenerateNature(int plantCount, int animalCount);
 
     void Shutdown();

@@ -3,9 +3,12 @@
 #define ANIMAL_H
 
 #include "raylib.h"
-#include "environment/WorldObject.h"   // <-- путь к базовому классу
+#include "environment/WorldObject.h"
 
-class Animal : public WorldObject {   // <-- наследование
+
+class Terrain;
+
+class Animal : public WorldObject {
 public:
     // constexpr константы
     static constexpr float DEFAULT_SPEED = 10.0f;
@@ -17,14 +20,14 @@ public:
     float hunger;
 
     Animal(Vector2 pos);
-    void Update(float deltaTime) override;   // <-- override
-    void Draw() const override;              // <-- override
 
+    void Update(float deltaTime, const Terrain* terrain) override;
+    void Draw() const override;
     static Texture2D texture;
     static bool textureLoaded;
 
 private:
-    void Wander(float deltaTime);
+    void Wander(float deltaTime, const Terrain* terrain);
 };
 
 #endif
