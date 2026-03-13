@@ -87,7 +87,12 @@ namespace CaptainFormation {
 
 } // namespace CaptainFormation
 
-static void MoveTowards(NPC& npc, Vector2 target, float dt, float speedMul = 1.0f) {
+static void MoveTowards(World& world, NPC& npc, Vector2 target, float dt, float speedMul = 1.0f) {
+    float terrainSpeed = world.terrain.getMoveSpeedAt(npc.pos.x, npc.pos.y);
+    if (terrainSpeed <= 0.0f) {
+        npc.vel = {0, 0};
+        return;
+    }
     Vector2 to = Vector2Subtract(target, npc.pos);
     if (Vector2Length(to) < 0.001f) {
         npc.vel = {0, 0};
@@ -95,7 +100,7 @@ static void MoveTowards(NPC& npc, Vector2 target, float dt, float speedMul = 1.0
     }
 
     Vector2 dir = SafeNormalizeEx(to);
-    npc.vel = Vector2Scale(dir, npc.speed * speedMul);
+    npc.vel = Vector2Scale(dir, npc.speed * speedMul * terrainSpeed);
     npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
 }
 
@@ -363,7 +368,7 @@ static bool ExecuteAttackOrder(World& world, NPC& captain, float dt, int groupId
     float d2 = Dist2(captain.pos, b.pos);
 
     if (d2 > meleeRange * meleeRange) {
-        MoveTowards(captain, b.pos, dt, 1.0f);
+        MoveTowards(world, captain, b.pos, dt, 1.0f);
     } else {
         captain.vel = {0, 0};
         TryMeleeAttack(world, captain, b, dt, 0.75f);
@@ -435,7 +440,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
                 if (d2 <= 18.0f * 18.0f) {
                     TryMeleeAttack(world, npc, enemy, dt, 0.85f);
                 } else {
-                    MoveTowards(npc, enemy.pos, dt);
+                    MoveTowards(world, npc, enemy.pos, dt);
                 }
                 return;
             }
@@ -444,7 +449,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
                 npc.pos.x + CELL_SIZE * 0.5f,
                 npc.pos.y - CELL_SIZE * 0.5f
             };
-            MoveTowards(npc, searchPos, dt, 0.8f);
+            MoveTowards(world, npc, searchPos, dt, 0.8f);
             return;
         }
 
@@ -460,7 +465,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
             if (d2 <= 18.0f * 18.0f) {
                 TryMeleeAttack(world, npc, enemy, dt, 0.85f);
             } else {
-                MoveTowards(npc, enemy.pos, dt);
+                MoveTowards(world, npc, enemy.pos, dt);
             }
 
             return;
@@ -485,7 +490,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
                         npc.attackCooldown = 0.85f;
                     }
                 } else {
-                    MoveTowards(npc, targetBarracks.posPx, dt);
+                    MoveTowards(world, npc, targetBarracks.posPx, dt);
                 }
                 return;
             }
@@ -497,13 +502,13 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
         float dist2 = dx*dx + dy*dy;
 
         if (dist2 > CELL_SIZE * CELL_SIZE * 1.5f) {
-            MoveTowards(npc, npc.warTargetPos, dt);
+            MoveTowards(world, npc, npc.warTargetPos, dt);
         } else {
             Vector2 pressurePos = {
                 npc.warTargetPos.x + CELL_SIZE * 0.5f,
                 npc.warTargetPos.y - CELL_SIZE * 0.5f
             };
-            MoveTowards(npc, pressurePos, dt);
+            MoveTowards(world, npc, pressurePos, dt);
         }
 
         return;
@@ -519,7 +524,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
                 npc.hasMoveTarget = false;
                 npc.vel = {0, 0};
             } else {
-                MoveTowards(npc, npc.captainMoveTarget, dt, 1.0f);
+                MoveTowards(world, npc, npc.captainMoveTarget, dt, 1.0f);
             }
         } else {
             npc.manualControl = false;
@@ -551,7 +556,7 @@ void CaptainBehavior::Update(World& world, NPC& npc, float dt) {
     if (camp.x == 0.0f && camp.y == 0.0f) camp = s.centerPx;
 
     if (Dist2(npc.pos, camp) > 16.0f * 16.0f) {
-        MoveTowards(npc, camp, dt, 0.75f);
+        MoveTowards(world, npc, camp, dt, 0.75f);
     } else {
         npc.vel = {0, 0};
     }

@@ -35,7 +35,13 @@ void CivilianBehavior::Update(World& world, NPC& npc, float dt)
 {
     if (dt <= 0.0f) return;
 
-    const float MAX_SPEED = npc.speed * 1.4f;
+    float terrainSpeed = world.terrain.getMoveSpeedAt(npc.pos.x, npc.pos.y);
+    if (terrainSpeed <= 0.0f) {
+        npc.vel = {0, 0};
+        return;
+    }
+
+    const float MAX_SPEED = npc.speed * 1.4f * terrainSpeed;
     const float SLOW_RADIUS = 25.0f;
     const float STOP_RADIUS = 6.0f;
 

@@ -28,7 +28,12 @@ static Vector2 RotateFromBaseY(Vector2 local, Vector2 forward) {
     };
 }
 
-static void MoveTowards(NPC& npc, Vector2 target, float dt, float speedMul = 1.0f) {
+static void MoveTowards(World& world, NPC& npc, Vector2 target, float dt, float speedMul = 1.0f) {
+    float terrainSpeed = world.terrain.getMoveSpeedAt(npc.pos.x, npc.pos.y);
+    if (terrainSpeed <= 0.0f) {
+        npc.vel = {0, 0};
+        return;
+    }
     Vector2 to = Vector2Subtract(target, npc.pos);
     float len = Vector2Length(to);
 
@@ -38,7 +43,7 @@ static void MoveTowards(NPC& npc, Vector2 target, float dt, float speedMul = 1.0
     }
 
     Vector2 dir = SafeNormalizeEx(to);
-    npc.vel = Vector2Scale(dir, npc.speed * speedMul);
+    npc.vel = Vector2Scale(dir, npc.speed * speedMul * terrainSpeed);
     npc.pos = Vector2Add(npc.pos, Vector2Scale(npc.vel, dt));
 }
 
@@ -243,7 +248,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
                 if (d2 <= 18.0f * 18.0f) {
                     TryMeleeAttack(world, npc, enemy, dt, 0.9f);
                 } else {
-                    MoveTowards(npc, enemy.pos, dt);
+                    MoveTowards(world, npc, enemy.pos, dt);
                 }
                 return;
             }
@@ -252,7 +257,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
                 npc.pos.x + (float)((npc.id % 3) - 1) * CELL_SIZE * 0.8f,
                 npc.pos.y + (float)(((npc.id / 3) % 3) - 1) * CELL_SIZE * 0.8f
             };
-            MoveTowards(npc, searchPos, dt, 0.8f);
+            MoveTowards(world, npc, searchPos, dt, 0.8f);
             return;
         }
 
@@ -265,7 +270,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
                 float d2Cap = dxCap*dxCap + dyCap*dyCap;
 
                 if (d2Cap > CELL_SIZE * CELL_SIZE * 5.0f) {
-                    MoveTowards(npc, captain->pos, dt);
+                    MoveTowards(world, npc, captain->pos, dt);
                     return;
                 }
             }
@@ -283,7 +288,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
             if (d2 <= 18.0f * 18.0f) {
                 TryMeleeAttack(world, npc, enemy, dt, 0.9f);
             } else {
-                MoveTowards(npc, enemy.pos, dt);
+                MoveTowards(world, npc, enemy.pos, dt);
             }
 
             return;
@@ -308,7 +313,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
                         npc.attackCooldown = 0.9f;
                     }
                 } else {
-                    MoveTowards(npc, targetBarracks.posPx, dt);
+                    MoveTowards(world, npc, targetBarracks.posPx, dt);
                 }
                 return;
             }
@@ -320,13 +325,13 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
         float dist2 = dx*dx + dy*dy;
 
         if (dist2 > CELL_SIZE * CELL_SIZE * 1.5f) {
-            MoveTowards(npc, npc.warTargetPos, dt);
+            MoveTowards(world, npc, npc.warTargetPos, dt);
         } else {
             Vector2 pressurePos = {
                 npc.warTargetPos.x + (float)((npc.id % 3) - 1) * CELL_SIZE * 0.9f,
                 npc.warTargetPos.y + (float)(((npc.id / 3) % 3) - 1) * CELL_SIZE * 0.9f
             };
-            MoveTowards(npc, pressurePos, dt);
+            MoveTowards(world, npc, pressurePos, dt);
         }
 
         return;
@@ -382,7 +387,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
                     float d2 = Dist2(npc.pos, b.pos);
 
                     if (d2 > meleeRange * meleeRange) {
-                        MoveTowards(npc, b.pos, dt, 1.15f);
+                        MoveTowards(world, npc, b.pos, dt, 1.15f);
                     } else {
                         npc.vel = {0, 0};
                         TryMeleeAttack(world, npc, b, dt, 0.80f);
@@ -398,7 +403,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
 
             float d2 = Dist2(npc.pos, slotTarget);
             if (d2 > 8.0f * 8.0f) {
-                MoveTowards(npc, slotTarget, dt, 1.05f);
+                MoveTowards(world, npc, slotTarget, dt, 1.05f);
             } else {
                 npc.vel = {0, 0};
             }
@@ -454,7 +459,7 @@ void WarriorBehavior::Update(World& world, NPC& npc, float dt) {
         float currentD2 = (nearestBandit != -1) ? Dist2(npc.pos, world.npcs[nearestBandit].pos) : FLT_MAX;
 
         if (nearestBandit != -1 && currentD2 > meleeRange * meleeRange) {
-            MoveTowards(npc, npc.combatTargetPos, dt, 1.25f);
+            MoveTowards(world, npc, npc.combatTargetPos, dt, 1.25f);
         } else {
             npc.vel = {0, 0};
         }

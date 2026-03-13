@@ -210,6 +210,7 @@ int main() {
             if (selectedW > 0) {
                 world.worldW = selectedW;
                 world.worldH = selectedH;
+                world.worldSeed = (unsigned int)GetRandomValue(1, 999999);
                 world.Init();
 
                 camera.target = { world.worldW * 0.5f, world.worldH * 0.5f };
