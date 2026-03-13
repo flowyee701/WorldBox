@@ -10,6 +10,7 @@
 
 #include "npc/Animal.h"
 #include "environment/Plant.h"
+#include "environment/Meteor.h"
 
 struct Settlement;
 
@@ -29,6 +30,7 @@ public:
     // --- ДОБАВЛЕНО: Списки для хранения растений и животных ---
     std::vector<std::unique_ptr<Animal>> animals;
     std::vector<Plant> plants;
+    std::vector<Meteor> meteors;
 
     static constexpr int NPC_VARIANTS = 3;
 
@@ -119,6 +121,11 @@ public:
     void SpawnAnimal(Vector2 pos);
     void SpawnPlant(Vector2 pos, float treeChance = 0.5f);
     void GenerateNature(int plantCount, int animalCount);
+
+    // --- Meteor system ---
+    void SpawnMeteor(Vector2 targetPos);
+    void UpdateMeteors(float dt);
+    void DrawMeteors() const;
 
     void Shutdown();
 };

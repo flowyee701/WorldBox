@@ -147,6 +147,7 @@ public:
 
     const std::vector<Biome>& getBiomes() const { return biomes; }
     int getBiomeCount() const { return (int)biomes.size(); }
+    int getBiomeIndex(float elevation, float moisture, float temperature) const;
 
 private:
     int width;
@@ -155,7 +156,11 @@ private:
     std::vector<Tile> tiles;
     std::vector<Biome> biomes;
 
-    int getBiomeIndex(float elevation, float moisture, float temperature) const;
+    float fade(float t) const;
+    float lerp(float a, float b, float t) const;
+    float grad(int hash, float x, float y) const;
+    float perlinNoise(float x, float y) const;
+    float fbm(float x, float y, int octaves) const;
 
     float fade(float t) const;
     float lerp(float a, float b, float t) const;

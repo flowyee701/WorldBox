@@ -18,6 +18,8 @@ public:
     Vector2 velocity;
     float speed;
     float hunger;
+    float health = 100.0f;
+    bool alive = true;
 
     Animal(Vector2 pos);
 
