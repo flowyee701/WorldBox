@@ -1,11 +1,13 @@
 # Core gameplay library
 add_library(worldbox_core
-    world.cpp
-    human_behavior.cpp
-    civilian_behavior.cpp
-    warrior_behavior.cpp
-    bandit_behavior.cpp
-    captain_behavior.cpp
+        world.cpp
+        human_behavior.cpp
+        civilian_behavior.cpp
+        warrior_behavior.cpp
+        bandit_behavior.cpp
+        captain_behavior.cpp
+        Animal.cpp
+        Plant.cpp
 )
 
 # Public headers

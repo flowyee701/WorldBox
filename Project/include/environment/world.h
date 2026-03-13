@@ -7,6 +7,9 @@
 #include "npc/npc.h"
 #include "settlement.h"
 
+#include "npc/Animal.h"
+#include "environment/Plant.h"
+
 struct Settlement;
 
 class World {
@@ -18,6 +21,10 @@ public:
 
     std::vector<Settlement> settlements;
     std::vector<NPC> npcs;
+
+    // --- ДОБАВЛЕНО: Списки для хранения растений и животных ---
+    std::vector<Animal> animals;
+    std::vector<Plant> plants;
 
     static constexpr int NPC_VARIANTS = 3;
 
@@ -103,6 +110,11 @@ public:
     void MergeSettlementsIfNeeded();
     void SpawnCivilian(Vector2 pos);
     void SpawnWarrior(Vector2 pos);
+
+    // --- ДОБАВЛЕНО: Методы для спавна природы ---
+    void SpawnAnimal(Vector2 pos);
+    void SpawnPlant(Vector2 pos);
+    void GenerateNature(int plantCount, int animalCount);
 
     void Shutdown();
 };

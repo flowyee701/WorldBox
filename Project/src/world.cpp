@@ -7,6 +7,12 @@
 #include <cfloat>
 #include <iostream>
 #include <string>
+#include "npc/Animal.h"
+#include "environment/Plant.h"
+// ------------------------------------------------------------
+// Helpers
+static Vector2 RandomOutsideSpawn(int w, int h) {
+    const float margin = 80.0f;
 
 // Returns a random spawn position on the world edge
 static Vector2 RandomOutsideSpawn(int w, int h) {
@@ -513,6 +519,40 @@ void World::LoadNpcSprites()
     }
 
     npcSpritesLoaded = true;
+
+    std::string horsePath = FindAssetPath("assets/npc/animal/animal.png");
+    if (!horsePath.empty()) {
+        Animal::texture = LoadTexture(horsePath.c_str());
+
+        // ПРОВЕРКА: Загрузилась ли текстура в видеопамять?
+        if (Animal::texture.id > 0) {
+            SetTextureFilter(Animal::texture, TEXTURE_FILTER_POINT);
+            Animal::textureLoaded = true;
+            TraceLog(LOG_INFO, ">>> SUCCESS: Horse texture loaded! (%dx%d)", Animal::texture.width, Animal::texture.height);
+        } else {
+            TraceLog(LOG_ERROR, ">>> ERROR: Failed to LoadTexture from path: %s", horsePath.c_str());
+            Animal::textureLoaded = false;
+        }
+    } else {
+        TraceLog(LOG_ERROR, ">>> ERROR: Could not find asset path for assets/npc/animal.png");
+        Animal::textureLoaded = false;
+    }
+
+    // Загрузка цветка
+    std::string flowerPath = FindAssetPath("assets/environment/flower/flower.png");
+    if (!flowerPath.empty()) {
+        Plant::texFlower = LoadTexture(flowerPath.c_str());
+        SetTextureFilter(Plant::texFlower, TEXTURE_FILTER_POINT);
+    }
+
+// Загрузка дерева
+    std::string treePath = FindAssetPath("assets/environment/tree/tree.png");
+    if (!treePath.empty()) {
+        Plant::texTree = LoadTexture(treePath.c_str());
+        SetTextureFilter(Plant::texTree, TEXTURE_FILTER_POINT);
+        Plant::texturesLoaded = true; // Считаем загруженным, когда есть оба
+    }
+    npcSpritesLoaded = true;
 }
 
 void World::UnloadNpcSprites()
@@ -524,6 +564,11 @@ void World::UnloadNpcSprites()
         if (npcTexCaptainLoaded[i])  { UnloadTexture(npcTexCaptain[i]);  npcTexCaptainLoaded[i]  = false; }
     }
     npcSpritesLoaded = false;
+
+    if (Animal::textureLoaded) {
+        UnloadTexture(Animal::texture);
+        Animal::textureLoaded = false;
+    }
 }
 
 void World::LoadFireSprites()
@@ -1682,6 +1727,10 @@ void World::Init()
     settlements.clear();
     npcs.clear();
 
+
+    plants.clear();
+    animals.clear();
+
     banditSpawnTimer = 0.0f;
     nextBanditGroupId = 1;
 
@@ -1694,6 +1743,8 @@ void World::Init()
     npcs.clear();
     nextNpcId = 1;
     selectedCaptainId = 0;
+
+    GenerateNature(200, 20);
 }
 void World::Shutdown()
 {
@@ -1838,12 +1889,40 @@ void World::Update(float dt) {
             s.alive = false;
         }
     }
+    for (auto& plant : plants) {
+        plant.Update(dt);
+    }
+    for (auto& animal : animals) {
+        animal.Update(dt);
+    }
 
     MergeSettlementsIfNeeded();
     UpdateCampfires();
     UpdateBarracks();
     UpdateSettlementWars(dt);
 }
+
+void World::SpawnAnimal(Vector2 pos) {
+    animals.push_back(Animal(pos));
+}
+
+void World::SpawnPlant(Vector2 pos) {
+    plants.push_back(Plant(pos));
+}
+
+void World::GenerateNature(int plantCount, int animalCount) {
+    // Раскидываем растения по карте
+    for (int i = 0; i < plantCount; i++) {
+        Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
+        SpawnPlant(pos);
+    }
+    // Раскидываем животных по карте
+    for (int i = 0; i < animalCount; i++) {
+        Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
+        SpawnAnimal(pos);
+    }
+}
+
 
 // Returns a fully opaque settlement color
 Color GetSafeSettlementColor(const World &w, int sid) {
@@ -1895,6 +1974,7 @@ static void DrawDiamondOutline(Vector2 center, int r, Color col)
 }
 
 void World::Draw() const {
+
     // grass
     for (int y = 0; y < rows; y++) {
         for (int x = 0; x < cols; x++) {
@@ -1903,6 +1983,12 @@ void World::Draw() const {
                          : Color{55, 110, 55, 255};
             DrawRectangle(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE, base);
         }
+    }
+    for (const auto& plant : plants) {
+        plant.Draw();
+    }
+    for (const auto& animal : animals) {
+        animal.Draw();
     }
 
     // settlements
