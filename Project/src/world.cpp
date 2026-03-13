@@ -2036,6 +2036,8 @@ void World::UpdateMeteors(float dt) {
     }), meteors.end());
 }
 
+
+//специально для никитоса
 void World::DrawMeteors() const {
     for (const auto& meteor : meteors) {
         if (meteor.state == Meteor::FALLING) {
