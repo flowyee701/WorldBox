@@ -34,7 +34,7 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     beachProps.hasVegetation = false;
     beachProps.treeChance = 0.0f;
 
-    // ── Plains ──
+
     TileProperties plainsProps;
     plainsProps.moveSpeed = 1.0f;
     plainsProps.canWalk  = true;
