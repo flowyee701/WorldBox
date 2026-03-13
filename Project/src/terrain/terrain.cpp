@@ -6,7 +6,6 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     : width(width), height(height), seed(seed),
       tiles(width * height) {
 
-    // ── Deep Water ──
     TileProperties deepWaterProps;
     deepWaterProps.moveSpeed = 0.0f;
     deepWaterProps.canWalk  = false;
