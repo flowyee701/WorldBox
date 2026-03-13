@@ -1,0 +1,15 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/include/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/include/npc/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/include/environment/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/src/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/app/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/tests/cmake_install.cmake",
+		"/Users/nigo57/Downloads/WorldBox gammeeee/build/Project/cmake/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

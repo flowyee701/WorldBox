@@ -1,0 +1,2 @@
+add_subdirectory(npc)
+add_subdirectory(environment)
