@@ -25,7 +25,7 @@ public:
     static bool texturesLoaded;
 
     Plant(Vector2 pos, float treeChance = 0.5f);
-    void Update(float deltaTime) override;
+    void Update(float deltaTime, const Terrain* terrain) override;
     void Draw() const override; 
 };
 

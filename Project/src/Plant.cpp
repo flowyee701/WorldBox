@@ -15,7 +15,7 @@ Plant::Plant(Vector2 pos, float treeChance) : position(pos), growthStage(0.1f), 
     color = (type == PlantType::TREE) ? DARKGREEN : RED;
 }
 
-void Plant::Update(float deltaTime) {
+void Plant::Update(float deltaTime, const Terrain* terrain) {
     if (growthStage < 1.0f) {
         growthStage += GROWTH_RATE * deltaTime;   // <-- используем константу
     }

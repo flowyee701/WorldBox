@@ -1901,7 +1901,7 @@ void World::Update(float dt) {
         }
     }
     for (auto& plant : plants) {
-        plant.Update(dt);
+        plant.Update(dt, &terrain);
     }
     for (auto& animal : animals) {
         animal->Update(dt, &terrain);
