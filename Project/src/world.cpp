@@ -10,9 +10,6 @@
 #include "npc/Animal.h"
 #include "environment/Plant.h"
 // ------------------------------------------------------------
-// Helpers
-static Vector2 RandomOutsideSpawn(int w, int h) {
-    const float margin = 80.0f;
 
 // Returns a random spawn position on the world edge
 static Vector2 RandomOutsideSpawn(int w, int h) {
