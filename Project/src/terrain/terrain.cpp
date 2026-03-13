@@ -309,24 +309,25 @@ bool Terrain::isPassable(int x, int y) const {
     return getTileProperties(x, y).canWalk;
 }
 
-bool Terrain::findNearestPassable(int targetX, int targetY,
-                                   int& outX, int& outY, int maxRadius) const {
-    for (int r = 1; r <= maxRadius; ++r) {
-        for (int dy = -r; dy <= r; ++dy) {
-            for (int dx = -r; dx <= r; ++dx) {
-                if (abs(dx) != r && abs(dy) != r) continue;
-                int nx = targetX + dx;
-                int ny = targetY + dy;
-                if (isPassable(nx, ny)) {
-                    outX = nx;
-                    outY = ny;
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
+// UNUSED: implemented but never called
+// bool Terrain::findNearestPassable(int targetX, int targetY,
+//                                    int& outX, int& outY, int maxRadius) const {
+//     for (int r = 1; r <= maxRadius; ++r) {
+//         for (int dy = -r; dy <= r; ++dy) {
+//             for (int dx = -r; dx <= r; ++dx) {
+//                 if (abs(dx) != r && abs(dy) != r) continue;
+//                 int nx = targetX + dx;
+//                 int ny = targetY + dy;
+//                 if (isPassable(nx, ny)) {
+//                     outX = nx;
+//                     outY = ny;
+//                     return true;
+//                 }
+//             }
+//         }
+//     }
+//     return false;
+// }
 
 // ─────────────────────── rendering ───────────────────────
 
