@@ -45,7 +45,7 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     plainsProps.hasVegetation = true;
     plainsProps.treeChance = 0.05f;
 
-    // ── Forest ──
+
     TileProperties forestProps;
     forestProps.moveSpeed = 0.7f;
     forestProps.canWalk  = true;
