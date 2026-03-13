@@ -6,9 +6,10 @@ Texture2D Plant::texTree = { 0 };
 bool Plant::texturesLoaded = false;
 
 // 2. Единственный правильный конструктор
-Plant::Plant(Vector2 pos) : position(pos), growthStage(0.1f), health(100.0f) {
-    // 50% шанс выбора типа при рождении
-    type = (GetRandomValue(0, 1) == 0) ? PlantType::FLOWER : PlantType::TREE;
+Plant::Plant(Vector2 pos, float treeChance) : position(pos), growthStage(0.1f), health(100.0f) {
+    // Determine type based on biome's treeChance
+    float roll = (float)GetRandomValue(0, 1000) / 1000.0f;
+    type = (roll < treeChance) ? PlantType::TREE : PlantType::FLOWER;
 
     // Старый цвет оставляем для отрисовки прототипа (точки)
     color = (type == PlantType::TREE) ? DARKGREEN : RED;

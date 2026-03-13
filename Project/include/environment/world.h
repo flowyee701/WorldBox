@@ -6,9 +6,11 @@
 #include "raymath.h"
 #include "npc/npc.h"
 #include "settlement.h"
+#include "terrain/terrain.h"
 
 #include "npc/Animal.h"
 #include "environment/Plant.h"
+#include "environment/Meteor.h"
 
 struct Settlement;
 
@@ -19,12 +21,16 @@ public:
     int cols = 0;
     int rows = 0;
 
+    Terrain terrain;
+    unsigned int worldSeed = 0;
+
     std::vector<Settlement> settlements;
     std::vector<NPC> npcs;
 
     // --- ДОБАВЛЕНО: Списки для хранения растений и животных ---
     std::vector<std::unique_ptr<Animal>> animals;
     std::vector<Plant> plants;
+    std::vector<Meteor> meteors;
 
     static constexpr int NPC_VARIANTS = 3;
 
@@ -113,8 +119,13 @@ public:
 
     // --- ДОБАВЛЕНО: Методы для спавна природы ---
     void SpawnAnimal(Vector2 pos);
-    void SpawnPlant(Vector2 pos);
+    void SpawnPlant(Vector2 pos, float treeChance = 0.5f);
     void GenerateNature(int plantCount, int animalCount);
+
+    // --- Meteor system ---
+    void SpawnMeteor(Vector2 targetPos);
+    void UpdateMeteors(float dt);
+    void DrawMeteors() const;
 
     void Shutdown();
 };

@@ -12,7 +12,7 @@ enum class AppState
 
 enum class SpawnMode { CIVILIAN, WARRIOR, BUILD_BARRACKS };
 enum class WarriorRank { WARRIOR, CAPTAIN };
-enum class ToolMode { NONE, KILL, WAR };
+enum class ToolMode { NONE, KILL, WAR, METEOR };
 
 // Applies a borderless fullscreen window layout
 static void ApplyBorderlessFullscreen() {
@@ -210,6 +210,7 @@ int main() {
             if (selectedW > 0) {
                 world.worldW = selectedW;
                 world.worldH = selectedH;
+                world.worldSeed = (unsigned int)GetRandomValue(1, 999999);
                 world.Init();
 
                 camera.target = { world.worldW * 0.5f, world.worldH * 0.5f };
@@ -296,6 +297,10 @@ int main() {
                     }
                     if (IsKeyPressed(KEY_TWO)) {
                         toolMode = ToolMode::WAR;
+                        pendingWarSettlementA = -1;
+                    }
+                    if (IsKeyPressed(KEY_THREE)) {
+                        toolMode = ToolMode::METEOR;
                         pendingWarSettlementA = -1;
                     }
                 }
@@ -386,6 +391,9 @@ int main() {
                                         pendingWarSettlementA = -1;
                                     }
                                 }
+                            }
+                            else if (toolsOpen && toolMode == ToolMode::METEOR) {
+                                world.SpawnMeteor(mouseWorld);
                             }
                             else if (mode == SpawnMode::BUILD_BARRACKS) {
                                 world.TryBuildBarracksAt(mouseWorld);
@@ -514,13 +522,15 @@ int main() {
 
             if (toolsOpen) {
                 const char* toolStr =
-                        (toolMode == ToolMode::KILL) ? "Tool: 1 KILL NPC" :
-                        (toolMode == ToolMode::WAR)  ? "Tool: 2 WAR" :
-                                                       "Tool: NONE";
+                        (toolMode == ToolMode::KILL)    ? "Tool: 1 KILL NPC" :
+                        (toolMode == ToolMode::WAR)     ? "Tool: 2 WAR" :
+                        (toolMode == ToolMode::METEOR)  ? "Tool: 3 METEOR" :
+                                                         "Tool: NONE";
                 Color toolColor =
-                        (toolMode == ToolMode::KILL) ? Color{255, 170, 170, 255} :
-                        (toolMode == ToolMode::WAR)  ? Color{255, 210, 120, 255} :
-                                                       RAYWHITE;
+                        (toolMode == ToolMode::KILL)    ? Color{255, 170, 170, 255} :
+                        (toolMode == ToolMode::WAR)     ? Color{255, 210, 120, 255} :
+                        (toolMode == ToolMode::METEOR)  ? Color{255, 100, 100, 255} :
+                                                         RAYWHITE;
 
                 DrawText(toolStr, uiX, uiY, 20, toolColor);
                 uiY += spacing;

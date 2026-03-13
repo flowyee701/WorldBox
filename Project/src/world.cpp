@@ -928,6 +928,7 @@ static Vector2 RandomEdgeSpawn(int w, int h) {
 }
 
 void World::SpawnCivilian(Vector2 pos) {
+    if (!terrain.canBuild(pos.x, pos.y)) return;
 
     NPC npc;
     npc.id = nextNpcId++;
@@ -1014,6 +1015,8 @@ void World::SpawnCivilian(Vector2 pos) {
 }
 
 void World::SpawnWarrior(Vector2 pos) {
+    if (!terrain.canBuild(pos.x, pos.y)) return;
+
     NPC npc;
     npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
@@ -1038,6 +1041,8 @@ void World::SpawnWarrior(Vector2 pos) {
     npcs.push_back(npc);
 }
 void World::SpawnCaptain(Vector2 pos) {
+    if (!terrain.canBuild(pos.x, pos.y)) return;
+
     NPC npc;
     npc.id = nextNpcId++;
     npc.type = NPC::Type::HUMAN;
@@ -1089,6 +1094,8 @@ const NPC* World::FindNpcById(uint32_t id) const {
 
 bool World::TryBuildBarracksAt(Vector2 worldPos)
 {
+    if (!terrain.canBuild(worldPos.x, worldPos.y)) return false;
+
     for (auto& s : settlements) {
         if (!s.alive) continue;
         if (!PointInSettlementPx(s, worldPos)) continue;
@@ -1725,6 +1732,9 @@ void World::Init()
     cols = worldW / CELL_SIZE;
     rows = worldH / CELL_SIZE;
 
+    terrain = Terrain(cols, rows, worldSeed);
+    terrain.generate();
+
     settlements.clear();
     npcs.clear();
 
@@ -1894,8 +1904,11 @@ void World::Update(float dt) {
         plant.Update(dt);
     }
     for (auto& animal : animals) {
-        animal->Update(dt);
+        if (!animal->alive) continue;
+        animal->Update(dt, &terrain);
     }
+
+    UpdateMeteors(dt);
 
     MergeSettlementsIfNeeded();
     UpdateCampfires();
@@ -1907,20 +1920,133 @@ void World::SpawnAnimal(Vector2 pos) {
     animals.push_back(std::make_unique<Animal>(pos));
 }
 
-void World::SpawnPlant(Vector2 pos) {
-    plants.push_back(Plant(pos));
+void World::SpawnPlant(Vector2 pos, float treeChance) {
+    plants.push_back(Plant(pos, treeChance));
 }
 
 void World::GenerateNature(int plantCount, int animalCount) {
-    // Раскидываем растения по карте
+    const auto& biomes = terrain.getBiomes();
+    
     for (int i = 0; i < plantCount; i++) {
         Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
-        SpawnPlant(pos);
+        
+        const Biome* biome = terrain.getBiomeAt(pos.x, pos.y);
+        if (biome && biome->props.canBuild) {
+            if (biome->props.hasVegetation || biome->props.treeChance > 0.0f) {
+                SpawnPlant(pos, biome->props.treeChance);
+            }
+        }
     }
-    // Раскидываем животных по карте
+    
     for (int i = 0; i < animalCount; i++) {
         Vector2 pos = { (float)GetRandomValue(0, worldW), (float)GetRandomValue(0, worldH) };
-        SpawnAnimal(pos);
+        
+        const Biome* biome = terrain.getBiomeAt(pos.x, pos.y);
+        if (biome && !biome->props.isWater && biome->props.canWalk) {
+            SpawnAnimal(pos);
+        }
+    }
+}
+
+void World::SpawnMeteor(Vector2 targetPos) {
+    meteors.emplace_back(targetPos);
+}
+
+void World::UpdateMeteors(float dt) {
+    for (auto& meteor : meteors) {
+        meteor.Update(dt);
+        
+        if (meteor.state == Meteor::EXPLODING && meteor.explosionTimer == 0.0f) {
+            Vector2 impactPos = meteor.targetPos;
+            float radius = meteor.radius;
+            
+            int tileRadius = (int)(radius / 8.0f) + 1;
+            int centerTileX = (int)(impactPos.x / 8.0f);
+            int centerTileY = (int)(impactPos.y / 8.0f);
+            
+            for (int dy = -tileRadius - 3; dy <= tileRadius + 3; dy++) {
+                for (int dx = -tileRadius - 3; dx <= tileRadius + 3; dx++) {
+                    int tx = centerTileX + dx;
+                    int ty = centerTileY + dy;
+                    
+                    if (tx < 0 || tx >= terrain.getWidth() || ty < 0 || ty >= terrain.getHeight()) continue;
+                    
+                    float dist = sqrtf((float)(dx * dx + dy * dy)) * 8.0f;
+                    
+                    if (dist < radius) {
+                        Tile& tile = terrain.getTile(tx, ty);
+                        float elevationReduction = 0.04f * (1.0f - dist / radius);
+                        tile.elevation = std::max(0.0f, tile.elevation - elevationReduction);
+                        tile.biomeIndex = terrain.getBiomeIndex(tile.elevation, tile.moisture, tile.temperature);
+                    }
+                    else if (dist < radius + 30.0f && dist >= radius) {
+                        if (GetRandomValue(0, 100) < 30) {
+                            Tile& tile = terrain.getTile(tx, ty);
+                            if (tile.elevation > 0.38f && tile.elevation < 0.83f) {
+                                float debrisAmount = 0.03f;
+                                tile.elevation += debrisAmount;
+                                if (tile.elevation > 0.85f) tile.elevation = 0.85f;
+                                tile.biomeIndex = terrain.getBiomeIndex(tile.elevation, tile.moisture, tile.temperature);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            for (auto& npc : npcs) {
+                if (!npc.alive) continue;
+                float dist = Vector2Distance(npc.pos, impactPos);
+                if (dist < radius) {
+                    npc.hp -= meteor.damage;
+                    if (npc.hp <= 0) {
+                        BeginNpcDeath(npc);
+                    }
+                }
+            }
+            
+            for (auto& animal : animals) {
+                if (!animal->alive) continue;
+                float dist = Vector2Distance(animal->position, impactPos);
+                if (dist < radius) {
+                    animal->health -= meteor.damage;
+                    if (animal->health <= 0) {
+                        animal->alive = false;
+                    }
+                }
+            }
+            
+            animals.erase(std::remove_if(animals.begin(), animals.end(), [](const std::unique_ptr<Animal>& a) {
+                return !a->alive;
+            }), animals.end());
+            
+            for (size_t i = plants.size(); i > 0; i--) {
+                float dist = Vector2Distance(plants[i-1].position, impactPos);
+                if (dist < radius) {
+                    plants[i-1].health -= meteor.damage;
+                    if (plants[i-1].health <= 0) {
+                        plants.erase(plants.begin() + i - 1);
+                    }
+                }
+            }
+        }
+    }
+    
+    meteors.erase(std::remove_if(meteors.begin(), meteors.end(), [](const Meteor& m) {
+        return m.IsDone();
+    }), meteors.end());
+}
+
+void World::DrawMeteors() const {
+    for (const auto& meteor : meteors) {
+        if (meteor.state == Meteor::FALLING) {
+            DrawCircleV(meteor.pos, 12.0f, Color{255, 80, 20, 255});
+            DrawCircleV(meteor.pos, 8.0f, Color{255, 200, 50, 255});
+        } else if (meteor.state == Meteor::EXPLODING) {
+            float pulse = 1.0f - (meteor.explosionTimer / meteor.explosionDuration);
+            float radius = meteor.radius * pulse;
+            DrawCircleV(meteor.targetPos, radius, Color{255, 60, 10, (unsigned char)(100 * pulse)});
+            DrawCircleV(meteor.targetPos, radius * 0.7f, Color{255, 150, 30, (unsigned char)(150 * pulse)});
+        }
     }
 }
 
@@ -1976,19 +2102,12 @@ static void DrawDiamondOutline(Vector2 center, int r, Color col)
 
 void World::Draw() const {
 
-    // grass
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x < cols; x++) {
-            Color base = ((x + y) % 2 == 0)
-                         ? Color{60, 120, 60, 255}
-                         : Color{55, 110, 55, 255};
-            DrawRectangle(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE, base);
-        }
-    }
+    terrain.draw();
     for (const auto& plant : plants) {
         plant.Draw();
     }
     for (const auto& animal : animals) {
+        if (!animal->alive) continue;
         animal->Draw();
     }
 
@@ -2245,4 +2364,6 @@ void World::Draw() const {
 
         DrawTexturePro(fireTex[f], src, dst, {0,0}, 0.0f, WHITE);
     }
+
+    DrawMeteors();
 }

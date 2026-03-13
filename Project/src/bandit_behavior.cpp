@@ -44,7 +44,10 @@ void BanditBehavior::Update(World& world, NPC& npc, float dt) {
         return;
     }
 
-    float baseSpeed = npc.speed * 0.55f;
+    float terrainSpeed = world.terrain.getMoveSpeedAt(npc.pos.x, npc.pos.y);
+    float swimSpeed = 0.3f;
+    float effectiveSpeed = (terrainSpeed > 0.0f) ? terrainSpeed : swimSpeed;
+    float baseSpeed = npc.speed * 0.55f * effectiveSpeed;
     Vector2 desiredDir;
     NPC* targetWarrior = nullptr;
 
