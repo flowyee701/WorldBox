@@ -23,7 +23,7 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     shallowWaterProps.isWater  = true;
     shallowWaterProps.tint     = {25, 75, 155, 255};
 
-    // ── Beach ──
+
     TileProperties beachProps;
     beachProps.moveSpeed = 0.9f;
     beachProps.canWalk  = true;
