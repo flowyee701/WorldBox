@@ -1,4 +1,5 @@
-add_library(environment_core INTERFACE)
+add_library(environment_core INTERFACE
+        WorldObject.h)
 
 target_include_directories(environment_core
         INTERFACE
