@@ -14,7 +14,7 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     deepWaterProps.isWater  = true;
     deepWaterProps.tint     = {5, 20, 80, 255};
 
-    // ── Shallow Water ──
+
     TileProperties shallowWaterProps;
     shallowWaterProps.moveSpeed = 0.0f;
     shallowWaterProps.canWalk  = false;
