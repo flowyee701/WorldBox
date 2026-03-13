@@ -1,7 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <vector>
-
+#include <memory>
 #include <raylib.h>
 #include "raymath.h"
 #include "npc/npc.h"
@@ -23,7 +23,7 @@ public:
     std::vector<NPC> npcs;
 
     // --- ДОБАВЛЕНО: Списки для хранения растений и животных ---
-    std::vector<Animal> animals;
+    std::vector<std::unique_ptr<Animal>> animals;
     std::vector<Plant> plants;
 
     static constexpr int NPC_VARIANTS = 3;

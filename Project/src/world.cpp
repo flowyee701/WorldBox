@@ -1,3 +1,5 @@
+#include <optional>
+#include <stdexcept>
 #include "environment/world.h"
 #include "npc/human_behavior.h"
 #include "npc/bandit_behavior.h"
@@ -517,38 +519,40 @@ void World::LoadNpcSprites()
 
     npcSpritesLoaded = true;
 
-    std::string horsePath = FindAssetPath("assets/npc/animal/animal.png");
-    if (!horsePath.empty()) {
-        Animal::texture = LoadTexture(horsePath.c_str());
+    // --- ЗАГРУЗКА ЛОШАДИ ---
+    auto horsePath = FindAssetPath("assets/npc/animal/animal.png");
 
-        // ПРОВЕРКА: Загрузилась ли текстура в видеопамять?
-        if (Animal::texture.id > 0) {
-            SetTextureFilter(Animal::texture, TEXTURE_FILTER_POINT);
-            Animal::textureLoaded = true;
-            TraceLog(LOG_INFO, ">>> SUCCESS: Horse texture loaded! (%dx%d)", Animal::texture.width, Animal::texture.height);
-        } else {
-            TraceLog(LOG_ERROR, ">>> ERROR: Failed to LoadTexture from path: %s", horsePath.c_str());
-            Animal::textureLoaded = false;
-        }
+// Используем std::optional: путь либо есть, либо его нет (nullopt)
+    std::optional<std::string> horsePathOpt = horsePath.empty() ? std::nullopt : std::make_optional(horsePath);
+
+    if (!horsePathOpt.has_value()) {
+        // ТРЕБОВАНИЕ ТЗ: Использование исключений (throw)
+        throw std::runtime_error("Critical error: Horse texture path not found!");
+    }
+
+    Animal::texture = LoadTexture(horsePathOpt->c_str());
+    if (Animal::texture.id > 0) {
+        SetTextureFilter(Animal::texture, TEXTURE_FILTER_POINT);
+        Animal::textureLoaded = true;
     } else {
-        TraceLog(LOG_ERROR, ">>> ERROR: Could not find asset path for assets/npc/animal.png");
-        Animal::textureLoaded = false;
+        throw std::runtime_error("Failed to load Horse texture into GPU!");
     }
 
-    // Загрузка цветка
-    std::string flowerPath = FindAssetPath("assets/environment/flower/flower.png");
-    if (!flowerPath.empty()) {
-        Plant::texFlower = LoadTexture(flowerPath.c_str());
-        SetTextureFilter(Plant::texFlower, TEXTURE_FILTER_POINT);
-    }
+// --- ЗАГРУЗКА РАСТЕНИЙ ---
 
-// Загрузка дерева
-    std::string treePath = FindAssetPath("assets/environment/tree/tree.png");
-    if (!treePath.empty()) {
-        Plant::texTree = LoadTexture(treePath.c_str());
-        SetTextureFilter(Plant::texTree, TEXTURE_FILTER_POINT);
-        Plant::texturesLoaded = true; // Считаем загруженным, когда есть оба
-    }
+// Цветок
+    auto flowerPath = FindAssetPath("assets/environment/flower/flower.png");
+    if (flowerPath.empty()) throw std::runtime_error("Flower texture not found!");
+    Plant::texFlower = LoadTexture(flowerPath.c_str());
+    SetTextureFilter(Plant::texFlower, TEXTURE_FILTER_POINT);
+
+// Дерево
+    auto treePath = FindAssetPath("assets/environment/tree/tree.png");
+    if (treePath.empty()) throw std::runtime_error("Tree texture not found!");
+    Plant::texTree = LoadTexture(treePath.c_str());
+    SetTextureFilter(Plant::texTree, TEXTURE_FILTER_POINT);
+
+    Plant::texturesLoaded = true;
     npcSpritesLoaded = true;
 }
 
@@ -1741,7 +1745,7 @@ void World::Init()
     nextNpcId = 1;
     selectedCaptainId = 0;
 
-    GenerateNature(200, 20);
+    GenerateNature(20000, 20);
 }
 void World::Shutdown()
 {
@@ -1890,7 +1894,7 @@ void World::Update(float dt) {
         plant.Update(dt);
     }
     for (auto& animal : animals) {
-        animal.Update(dt);
+        animal->Update(dt);
     }
 
     MergeSettlementsIfNeeded();
@@ -1900,7 +1904,7 @@ void World::Update(float dt) {
 }
 
 void World::SpawnAnimal(Vector2 pos) {
-    animals.push_back(Animal(pos));
+    animals.push_back(std::make_unique<Animal>(pos));
 }
 
 void World::SpawnPlant(Vector2 pos) {
@@ -1985,7 +1989,7 @@ void World::Draw() const {
         plant.Draw();
     }
     for (const auto& animal : animals) {
-        animal.Draw();
+        animal->Draw();
     }
 
     // settlements
