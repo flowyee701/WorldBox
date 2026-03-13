@@ -23,6 +23,15 @@ endif()
 # Internal modules
 add_subdirectory(Project)
 
+# Google Tests
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.14.0
+)
+FetchContent_MakeAvailable(googletest)
+
 # Assets
 file(COPY "${CMAKE_SOURCE_DIR}/Project/assets"
     DESTINATION "${CMAKE_BINARY_DIR}")
