@@ -1905,7 +1905,7 @@ void World::Update(float dt, const Terrain* terrain) {
     }
     for (auto& animal : animals) {
         if (!animal->alive) continue;
-        animal->Update(dt, &terrain);
+        animal->Update(dt, terrain);
     }
 
     UpdateMeteors(dt);
