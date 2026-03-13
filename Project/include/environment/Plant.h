@@ -5,6 +5,8 @@
 #include "raylib.h"
 #include "WorldObject.h"   // <-- подключаем базовый класс (лежит в той же папке)
 
+class Terrain;
+
 enum class PlantType { FLOWER, TREE };
 
 class Plant : public WorldObject {   // <-- наследование

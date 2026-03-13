@@ -104,7 +104,7 @@ public:
 
 
     void Init();
-    void Update(float dt);
+    void Update(float dt, const Terrain* terrain);
     void Draw() const;
 
     bool PointInSettlementPx(const Settlement& s, Vector2 pos) const;

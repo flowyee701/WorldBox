@@ -404,7 +404,7 @@ int main() {
                     }
                 }
 
-                world.Update(dt);
+                world.Update(dt, &world.terrain);
             }
             else if (appState == AppState::PAUSED) {
                 if (IsKeyPressed(KEY_ESCAPE)) {

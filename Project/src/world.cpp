@@ -1767,7 +1767,7 @@ void World::Shutdown()
 
 
 // Updates the world simulation for one frame
-void World::Update(float dt) {
+void World::Update(float dt, const Terrain* terrain) {
 
     // Spawn new bandit groups
     banditSpawnTimer -= dt;
@@ -1901,10 +1901,10 @@ void World::Update(float dt) {
         }
     }
     for (auto& plant : plants) {
-        plant.Update(dt, &terrain);
+        plant.Update(dt, terrain);
     }
     for (auto& animal : animals) {
-        animal->Update(dt, &terrain);
+        animal->Update(dt, terrain);
     }
 
     MergeSettlementsIfNeeded();
