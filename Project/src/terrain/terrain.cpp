@@ -67,7 +67,7 @@ Terrain::Terrain(int width, int height, unsigned int seed)
     hillsProps.hasVegetation = true;
     hillsProps.treeChance = 0.3f;
 
-    // ── Mountain ──
+
     TileProperties mountainProps;
     mountainProps.moveSpeed = 0.3f;
     mountainProps.canWalk  = true;
