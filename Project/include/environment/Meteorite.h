@@ -11,13 +11,13 @@ public:
     bool active;
     float rotation;
     float rotationSpeed;
-    
-    // Animation
+
+
+    //если добавим анимацию
     int currentFrame;
     float animationTimer;
     float animationSpeed;
-    
-    // Explosion
+
     bool exploding;
     float explosionTimer;
     float explosionRadius;

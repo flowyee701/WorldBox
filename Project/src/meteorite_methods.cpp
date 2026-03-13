@@ -1,4 +1,3 @@
-// Meteorite methods implementation
 #include "environment/world.h"
 #include "environment/Meteorite.h"
 #include <cmath>
