@@ -1870,7 +1870,6 @@ void World::Update(float dt) {
         }
     }
 
-    // Remove entities whose death state has fully finished
     npcs.erase(
             std::remove_if(npcs.begin(), npcs.end(),
                            [](const NPC& n) {
@@ -2025,6 +2024,28 @@ void World::UpdateMeteors(float dt) {
                     plants[i-1].health -= meteor.damage;
                     if (plants[i-1].health <= 0) {
                         plants.erase(plants.begin() + i - 1);
+                    }
+                }
+            }
+
+            for (auto& s : settlements) {
+                if (!s.alive) continue;
+                float distCampfire = Vector2Distance(s.campfirePosPx, impactPos);
+                if (distCampfire < radius) {
+                    s.alive = false;
+                    s.campfirePosPx = {0, 0};
+                }
+
+                for (auto& b : s.barracksList) {
+                    if (!b.alive) continue;
+                    float distBarracks = Vector2Distance(b.posPx, impactPos);
+                    if (distBarracks < radius) {
+                        b.hp -= meteor.damage;
+                        if (b.hp <= 0) {
+                            b.hp = 0;
+                            b.maxHp = 0;
+                            b.alive = false;
+                        }
                     }
                 }
             }
