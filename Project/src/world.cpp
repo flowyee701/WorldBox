@@ -1904,10 +1904,11 @@ void World::Update(float dt, const Terrain* terrain) {
     }
     for (auto& animal : animals) {
         if (!animal->alive) continue;
-        animal->Update(dt, &terrain);
+        animal->Update(dt, terrain);
     }
 
     UpdateMeteors(dt);
+    UpdateArmageddon(dt);
 
     MergeSettlementsIfNeeded();
     UpdateCampfires();
@@ -2068,6 +2069,30 @@ void World::DrawMeteors() const {
             DrawCircleV(meteor.targetPos, radius, Color{255, 60, 10, (unsigned char)(100 * pulse)});
             DrawCircleV(meteor.targetPos, radius * 0.7f, Color{255, 150, 30, (unsigned char)(150 * pulse)});
         }
+    }
+}
+
+void World::StartArmageddon() {
+    armageddonMode = true;
+    armageddonTimer = 0.0f;
+}
+
+void World::StopArmageddon() {
+    armageddonMode = false;
+    armageddonTimer = 0.0f;
+}
+
+void World::UpdateArmageddon(float dt) {
+    if (!armageddonMode) return;
+
+    armageddonTimer -= 3 * dt;
+    if (armageddonTimer <= 0.0f) {
+        Vector2 randomPos = {
+            (float)GetRandomValue(0, worldW),
+            (float)GetRandomValue(0, worldH)
+        };
+        SpawnMeteor(randomPos);
+        armageddonTimer = armageddonInterval;
     }
 }
 

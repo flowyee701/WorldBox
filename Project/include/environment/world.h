@@ -127,6 +127,14 @@ public:
     void UpdateMeteors(float dt);
     void DrawMeteors() const;
 
+    // --- Armageddon mode ---
+    bool armageddonMode = false;
+    float armageddonTimer = 0.0f;
+    float armageddonInterval = 0.3f;
+    void StartArmageddon();
+    void StopArmageddon();
+    void UpdateArmageddon(float dt);
+
     void Shutdown();
 };
 
