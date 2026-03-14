@@ -1,2 +1,0 @@
-/usr/bin/ar qc libterrain_core.a CMakeFiles/terrain_core.dir/terrain.cpp.o
-/usr/bin/ranlib libterrain_core.a

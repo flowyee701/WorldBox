@@ -162,6 +162,12 @@ private:
     float perlinNoise(float x, float y) const;
     float fbm(float x, float y, int octaves) const;
 
+    float fade(float t) const;
+    float lerp(float a, float b, float t) const;
+    float grad(int hash, float x, float y) const;
+    float perlinNoise(float x, float y) const;
+    float fbm(float x, float y, int octaves) const;
+
     float distToRegion(int px, int py, int rx1, int ry1, int rx2, int ry2) const;
     void carveRegion(int x1, int y1, int x2, int y2, float edgeFade, int biomeIdx);
 };
