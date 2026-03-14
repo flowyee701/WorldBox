@@ -304,6 +304,13 @@ int main() {
                         toolMode = ToolMode::METEOR;
                         pendingWarSettlementA = -1;
                     }
+                    if (IsKeyPressed(KEY_FOUR)) {
+                        if (world.armageddonMode) {
+                            world.StopArmageddon();
+                        } else {
+                            world.StartArmageddon();
+                        }
+                    }
                 }
 
                 if (IsKeyPressed(KEY_A) && world.selectedCaptainId != 0) {
@@ -564,11 +571,19 @@ int main() {
             const char* t2="Shift+LMB Ground: Move selected captain";
             const char* t3="Shift+LMB Bandit: Attack whole bandit group";
             const char* t4="0: Tools | Tools: 1 Kill, 2 War | 9: Build Barracks | A: AUTO/MANUAL | Esc: Deselect/Pause | F5: Fullscreen";
+            const char* t5="Tool: 4 Armageddon";
 
             DrawText(t1, uiX, uiY, 20, RAYWHITE); uiY += spacing;
             DrawText(t2, uiX, uiY, 20, RAYWHITE); uiY += spacing;
             DrawText(t3, uiX, uiY, 20, RAYWHITE); uiY += spacing;
             DrawText(t4, uiX, uiY, 20, RAYWHITE); uiY += spacing;
+            DrawText(t5, uiX, uiY, 20, RAYWHITE); uiY += spacing;
+
+            if (world.armageddonMode) {
+                uiY += 10;
+                DrawText("ARMAGEDDON ACTIVE!", uiX, uiY, 24, Color{255, 50, 50, 255});
+                uiY += spacing;
+            }
 
             if (world.selectedCaptainId != 0) {
                 NPC* cap = world.FindNpcById(world.selectedCaptainId);
